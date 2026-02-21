@@ -72,9 +72,13 @@ Write memory only when all are true:
 
 - Task is complete
 - Task is related to the current repository
-- Outcome is valuable and reusable
+- One of the following is true:
+  - Outcome is valuable and reusable
+  - User explicitly asked to remember this request/task
 
-Do not write memory for casual chat, pure Q&A, or incomplete tasks.
+If the user explicitly asked to remember, that overrides the "valuable and reusable" requirement, but task completion and repository relevance are still required.
+
+Do not write memory for incomplete tasks or requests unrelated to the current repository. For casual chat or pure Q&A, do not write unless the user explicitly asked to remember.
 
 ### 3. If User Is Unsatisfied: Delete and Rewrite
 

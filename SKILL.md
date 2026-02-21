@@ -137,10 +137,14 @@ The first paragraph is a concise summary of the task (what was done and why). Ke
 **Write conditions** (all must be met):
 - Task is complete (not awaiting user reply, not in failed state)
 - Task is related to the current code repository
-- Produced a valuable conclusion or change
+- One of the following is true:
+  - Produced a valuable conclusion or change
+  - User explicitly asked to remember this request/task
+
+If the user explicitly asks to remember, this overrides the "valuable conclusion or change" requirement, but task completion and repository relevance are still required.
 
 **Do NOT write when**:
-- Pure Q&A or casual chat
+- Pure Q&A or casual chat (unless the user explicitly asked to remember)
 - Task is still incomplete (awaiting user reply, test failures, etc.)
 - Request is unrelated to the current code repository
 
