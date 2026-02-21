@@ -2,14 +2,14 @@
 
 # GitMemo Skill
 
-A lightweight skill that gives coding agents long-term memory through a **local** `.mem` Git repository. Git is the only dependency.
+A fully automated skill that gives coding agents long-term memory through a **local** `.mem` Git repository. Git is the only dependency, and users do not need to run memory commands manually.
 
 ## Overview
 
 - Stores completed task outcomes as markdown entries under `.mem/entries/`
-- Provides memory operations: `init`, `search`, `read`, `commit`, `delete`
+- Runs memory operations automatically (`init`, `search`, `read`, `commit`, `delete`) during agent tasks
 - Aligns the `.mem` branch with the current project branch on commit
-- Integrates with `AGENTS.md` so all agents follow the same memory policy
+- Integrates with agent instruction files so all agents follow the same memory policy
 
 ## Git-Based vs Vector-DB Memory
 
@@ -23,33 +23,39 @@ Practical guidance: use Git memory as the auditable "source-of-truth layer", the
 ## File Layout
 
 - `SKILL.md`: skill definition and workflow rules
-- `agents-template.md`: snippet to append to project `AGENTS.md`
-- `scripts/mem.ps1`: Windows interface
-- `scripts/mem.sh`: Linux/macOS interface
+- `agents-template.md`: snippet to append to your agent instruction file
+- `scripts/mem.ps1`: Windows runtime interface used by agents
+- `scripts/mem.sh`: Linux/macOS runtime interface used by agents
 
 ## Quick Start
 
-Run commands from the project root (not inside `.mem`).
+### 1. Install this skill into your project
 
-### Windows (PowerShell)
-
-```powershell
-./scripts/mem.ps1 init
-./scripts/mem.ps1 search "auth,rate-limit" 0
-./scripts/mem.ps1 read <commit_hash>
-./scripts/mem.ps1 commit --file "entries/<timestamp>-<slug>.md" --title "[module] action object purpose" --body "summary..."
-./scripts/mem.ps1 delete <commit_hash>
-```
-
-### Linux/macOS (Bash)
+From your project root:
 
 ```bash
-bash ./scripts/mem.sh init
-bash ./scripts/mem.sh search "auth,rate-limit" 0
-bash ./scripts/mem.sh read <commit_hash>
-bash ./scripts/mem.sh commit --file "entries/<timestamp>-<slug>.md" --title "[module] action object purpose" --body "summary..."
-bash ./scripts/mem.sh delete <commit_hash>
+git clone https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
 ```
+
+Or add it as a submodule:
+
+```bash
+git submodule add https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
+```
+
+### 2. Add `agents-template.md` instructions to your AI tool
+
+Copy the content of `./.agents/skills/gitmemo/agents-template.md` into your tool's project-level instruction file:
+
+| AI tool | Project instruction file | Notes |
+| --- | --- | --- |
+| Claude Code | `CLAUDE.md` | Claude Code loads project memory from this file. |
+| Codex | `AGENTS.md` | Codex reads repo/user `AGENTS.md` instructions. |
+| GitHub Copilot | `.github/copilot-instructions.md` | You can also add scoped rules under `.github/instructions/*.instructions.md`. |
+| Trae | `.trae/rules/project_rules.md` | Create via Trae "Rules > Project Rules" and paste the same workflow instructions. |
+| Other agent tools | `AGENTS.md` (recommended) | If the tool supports `AGENTS.md`, reuse the same template directly. |
+
+After setup, the agent handles `.mem` initialization, search, read, write, and delete automatically during tasks. No user-side memory command operations are required.
 
 ## Agent Workflow
 
@@ -75,47 +81,3 @@ Do not write memory for casual chat, pure Q&A, or incomplete tasks.
 1. Run `delete <commit_hash>`
 2. Redo the task based on feedback
 3. Write a corrected memory entry
-
-## Entry Format
-
-Each memory entry is a markdown file in `.mem/entries/` with YAML front matter:
-
-```md
----
-date: 2026-02-19T15:10:10Z
-status: done
-repo_branch: main
-repo_commit: 9f3e1a2
-mem_branch: main
-related_paths:
-  - src/auth/login.ts
-tags:
-  - auth
-  - security
----
-
-### Original User Request
-(verbatim)
-
-### AI Understanding
-- Goal:
-- Constraints:
-- Out of scope:
-
-### Final Outcome
-- Output 1:
-```
-
-Filename convention:
-
-- `<timestamp>-<slug>.md` (example: `20260219T151010Z-add-auth-rate-limit.md`)
-
-## Commit Message Convention
-
-- Title: `[module] action + object + purpose`
-- Body includes a 1-3 sentence summary
-- Body includes metadata lines: `date`, `tags`, `related-paths`
-
-## AGENTS.md Integration
-
-Copy the content from `agents-template.md` into your repository `AGENTS.md` so all agents follow the GitMemo memory workflow by default.

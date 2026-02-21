@@ -1,13 +1,13 @@
 # GitMemo Skill
 
-这是一个为编码代理提供长期记忆能力的轻量级 Skill，基于**本地** `.mem` Git 仓库存储任务历史，且仅依赖 Git。
+这是一个为编码代理提供长期记忆能力的全自动 Skill，基于**本地** `.mem` Git 仓库存储任务历史，且仅依赖 Git；用户无需手动执行记忆相关命令。
 
 ## 功能概览
 
 - 将已完成任务沉淀为 `.mem/entries/` 下的 Markdown 记忆条目
-- 提供完整接口：`init`、`search`、`read`、`commit`、`delete`
+- 在代理任务过程中自动执行：`init`、`search`、`read`、`commit`、`delete`
 - `commit` 时自动将 `.mem` 分支与当前项目分支对齐
-- 可通过 `AGENTS.md` 强制所有代理遵循统一记忆流程
+- 可通过各类代理指令文件统一约束记忆流程
 
 ## Git Memory 与向量数据库 Memory 对比
 
@@ -21,33 +21,39 @@
 ## 目录说明
 
 - `SKILL.md`：技能定义与流程规则
-- `agents-template.md`：可复制到项目 `AGENTS.md` 的模板片段
-- `scripts/mem.ps1`：Windows 脚本入口
-- `scripts/mem.sh`：Linux/macOS 脚本入口
+- `agents-template.md`：可复制到代理项目级指令文件的模板片段
+- `scripts/mem.ps1`：供代理调用的 Windows 运行时接口
+- `scripts/mem.sh`：供代理调用的 Linux/macOS 运行时接口
 
 ## 快速开始
 
-请在项目根目录执行命令（不要在 `.mem` 目录内执行）。
+### 1. 将本 Skill 安装到你的项目中
 
-### Windows (PowerShell)
-
-```powershell
-./scripts/mem.ps1 init
-./scripts/mem.ps1 search "auth,rate-limit" 0
-./scripts/mem.ps1 read <commit_hash>
-./scripts/mem.ps1 commit --file "entries/<timestamp>-<slug>.md" --title "[module] action object purpose" --body "summary..."
-./scripts/mem.ps1 delete <commit_hash>
-```
-
-### Linux/macOS (Bash)
+在项目根目录执行：
 
 ```bash
-bash ./scripts/mem.sh init
-bash ./scripts/mem.sh search "auth,rate-limit" 0
-bash ./scripts/mem.sh read <commit_hash>
-bash ./scripts/mem.sh commit --file "entries/<timestamp>-<slug>.md" --title "[module] action object purpose" --body "summary..."
-bash ./scripts/mem.sh delete <commit_hash>
+git clone https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
 ```
+
+或使用子模块：
+
+```bash
+git submodule add https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
+```
+
+### 2. 将 `agents-template.md` 指令写入你的 AI 工具
+
+把 `./.agents/skills/gitmemo/agents-template.md` 内容复制到对应工具的项目级指令文件：
+
+| AI 工具 | 项目指令文件 | 说明 |
+| --- | --- | --- |
+| Claude Code | `CLAUDE.md` | Claude Code 会从该文件读取项目规则。 |
+| Codex | `AGENTS.md` | Codex 会读取仓库/用户级 `AGENTS.md` 指令。 |
+| GitHub Copilot | `.github/copilot-instructions.md` | 也可在 `.github/instructions/*.instructions.md` 中写更细粒度规则。 |
+| Trae | `.trae/rules/project_rules.md` | 可在 Trae 的 “Rules > Project Rules” 中创建并粘贴同样指令。 |
+| 其他代理工具 | `AGENTS.md`（推荐） | 如果工具支持 `AGENTS.md`，可直接复用同一模板。 |
+
+完成以上配置后，代理会在任务过程中自动处理 `.mem` 初始化、检索、读取、写入和删除；用户不需要手动介入记忆操作。
 
 ## 代理工作流
 
@@ -77,47 +83,3 @@ bash ./scripts/mem.sh delete <commit_hash>
 1. 执行 `delete <commit_hash>`
 2. 按反馈重做任务
 3. 重新写入新的记忆条目
-
-## 记忆条目格式
-
-每条记忆都是 `.mem/entries/` 下的 Markdown 文件，使用 YAML front matter：
-
-```md
----
-date: 2026-02-19T15:10:10Z
-status: done
-repo_branch: main
-repo_commit: 9f3e1a2
-mem_branch: main
-related_paths:
-  - src/auth/login.ts
-tags:
-  - auth
-  - security
----
-
-### Original User Request
-(verbatim)
-
-### AI Understanding
-- Goal:
-- Constraints:
-- Out of scope:
-
-### Final Outcome
-- Output 1:
-```
-
-文件命名约定：
-
-- `<timestamp>-<slug>.md`（例如 `20260219T151010Z-add-auth-rate-limit.md`）
-
-## 提交信息约定
-
-- 标题：`[module] action + object + purpose`
-- 正文包含 1-3 句任务摘要
-- 正文包含元数据行：`date`、`tags`、`related-paths`
-
-## AGENTS.md 接入
-
-将 `agents-template.md` 内容复制到你的项目 `AGENTS.md`，即可让代理默认遵循 GitMemo 记忆策略。
