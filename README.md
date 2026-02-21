@@ -2,7 +2,7 @@
 
 # GitMemo Skill
 
-Long-term memory workflow for coding agents, powered by a local `.mem` Git repository.
+A lightweight skill that gives coding agents long-term memory through a **local** `.mem` Git repository. Git is the only dependency.
 
 ## Overview
 
