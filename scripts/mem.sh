@@ -79,9 +79,90 @@ cmd_search() {
         return 1
     fi
 
-    git -C "$MEM_DIR" log "${grep_args[@]}" \
-        -i --skip="$skip" --max-count=100 \
-        --format="%H|%s|%cd" --date=iso --all 2>/dev/null || true
+    local limit=100
+    local batch_size=200
+    local raw_skip=0
+    local remaining_skip="$skip"
+    local results=()
+    local reached_limit=0
+
+    local active_entries
+    active_entries=$(git -C "$MEM_DIR" ls-tree -r --name-only HEAD -- entries/ 2>/dev/null || true)
+    local active_entries_nl=$'\n'"$active_entries"$'\n'
+
+    if ! [[ "$remaining_skip" =~ ^[0-9]+$ ]]; then
+        echo "Error: skip must be a non-negative integer" >&2
+        return 1
+    fi
+
+    while [ "${#results[@]}" -lt "$limit" ]; do
+        local batch_output
+        batch_output=$(git -C "$MEM_DIR" log "${grep_args[@]}" \
+            -i --skip="$raw_skip" --max-count="$batch_size" \
+            --format=$'%H\t%s\t%cd' --date=iso \
+            --name-only --all -- entries/ 2>/dev/null || true)
+
+        [ -z "$batch_output" ] && break
+
+        local batch_count=0
+        local current_hash=""
+        local current_subject=""
+        local current_date=""
+        local current_file=""
+
+        while IFS= read -r line; do
+            [ -z "$line" ] && continue
+
+            local parsed_hash parsed_subject parsed_date
+            IFS=$'\t' read -r parsed_hash parsed_subject parsed_date <<< "$line"
+
+            if [[ "$parsed_hash" =~ ^[0-9a-f]{40}$ ]]; then
+                if [ -n "$current_hash" ]; then
+                    if [[ "$current_subject" != delete:\ remove* ]] && [ -n "$current_file" ] && [[ "$active_entries_nl" == *$'\n'"$current_file"$'\n'* ]]; then
+                        if [ "$remaining_skip" -gt 0 ]; then
+                            remaining_skip=$((remaining_skip - 1))
+                        else
+                            results+=("$current_hash|$current_subject|$current_date")
+                            if [ "${#results[@]}" -ge "$limit" ]; then
+                                reached_limit=1
+                                break
+                            fi
+                        fi
+                    fi
+                fi
+
+                current_hash="$parsed_hash"
+                current_subject="$parsed_subject"
+                current_date="$parsed_date"
+                current_file=""
+                batch_count=$((batch_count + 1))
+                continue
+            fi
+
+            if [ -z "$current_file" ] && [[ "$line" == entries/*.md ]]; then
+                current_file="$line"
+            fi
+        done <<< "$batch_output"
+
+        if [ "$reached_limit" -ne 1 ] && [ -n "$current_hash" ]; then
+            if [[ "$current_subject" != delete:\ remove* ]] && [ -n "$current_file" ] && [[ "$active_entries_nl" == *$'\n'"$current_file"$'\n'* ]]; then
+                if [ "$remaining_skip" -gt 0 ]; then
+                    remaining_skip=$((remaining_skip - 1))
+                else
+                    results+=("$current_hash|$current_subject|$current_date")
+                    if [ "${#results[@]}" -ge "$limit" ]; then
+                        reached_limit=1
+                    fi
+                fi
+            fi
+        fi
+
+        [ "$reached_limit" -eq 1 ] && break
+        [ "$batch_count" -lt "$batch_size" ] && break
+        raw_skip=$((raw_skip + batch_size))
+    done
+
+    printf '%s\n' "${results[@]}"
 }
 
 cmd_read() {

@@ -79,11 +79,97 @@ function Invoke-Search {
         return
     }
 
-    $gitArgs = @("log") + $grepArgs + @(
-        "-i", "--skip=$Skip", "--max-count=100",
-        "--format=%H|%s|%cd", "--date=iso", "--all"
-    )
-    & git -C $script:MemDir @gitArgs 2>$null
+    $limit = 100
+    $batchSize = 200
+    $rawSkip = 0
+    $remainingSkip = [Math]::Max(0, $Skip)
+    $results = New-Object System.Collections.Generic.List[string]
+
+    # Build an in-memory set of active entry files once to avoid per-commit git calls.
+    $activeEntries = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    $activeLines = @(& git -C $script:MemDir ls-tree -r --name-only HEAD -- entries/ 2>$null)
+    foreach ($entry in $activeLines) {
+        if ($entry -and $entry -ne "entries/.gitkeep") {
+            [void]$activeEntries.Add($entry)
+        }
+    }
+
+    while ($results.Count -lt $limit) {
+        $gitArgs = @("log") + $grepArgs + @(
+            "-i", "--skip=$rawSkip", "--max-count=$batchSize",
+            "--format=%H%x09%s%x09%cd", "--date=iso",
+            "--name-only", "--all", "--", "entries/"
+        )
+
+        $lines = @(& git -C $script:MemDir @gitArgs 2>$null)
+        if ($lines.Count -eq 0) { break }
+
+        $batchCommitCount = 0
+        $currentHash = ""
+        $currentSubject = ""
+        $currentDate = ""
+        $currentFile = ""
+
+        foreach ($line in $lines) {
+            if (-not $line) { continue }
+
+            if ($line -match "^[0-9a-f]{40}`t") {
+                if ($currentHash) {
+                    if (
+                        $currentSubject -notlike "delete: remove *" -and
+                        $currentFile -and
+                        $activeEntries.Contains($currentFile)
+                    ) {
+                        if ($remainingSkip -gt 0) {
+                            $remainingSkip--
+                        } else {
+                            $results.Add("$currentHash|$currentSubject|$currentDate")
+                            if ($results.Count -ge $limit) { break }
+                        }
+                    }
+                }
+
+                $parts = $line -split "`t", 3
+                if ($parts.Count -lt 3) {
+                    $currentHash = ""
+                    $currentSubject = ""
+                    $currentDate = ""
+                    $currentFile = ""
+                    continue
+                }
+
+                $currentHash = $parts[0]
+                $currentSubject = $parts[1]
+                $currentDate = $parts[2]
+                $currentFile = ""
+                $batchCommitCount++
+                continue
+            }
+
+            if (-not $currentFile -and $line -like "entries/*.md") {
+                $currentFile = $line.Trim()
+            }
+        }
+
+        if ($results.Count -lt $limit -and $currentHash) {
+            if (
+                $currentSubject -notlike "delete: remove *" -and
+                $currentFile -and
+                $activeEntries.Contains($currentFile)
+            ) {
+                if ($remainingSkip -gt 0) {
+                    $remainingSkip--
+                } else {
+                    $results.Add("$currentHash|$currentSubject|$currentDate")
+                }
+            }
+        }
+
+        if ($batchCommitCount -lt $batchSize) { break }
+        $rawSkip += $batchSize
+    }
+
+    $results
 }
 
 function Invoke-Read {
