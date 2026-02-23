@@ -60,12 +60,55 @@ cmd_init() {
 cmd_search() {
     ensure_init
     local keywords="${1:-}"
-    local skip="${2:-0}"
+    shift || true
+    local skip="0"
+    local mode="auto"
 
     if [ -z "$keywords" ]; then
-        echo "Usage: mem.sh search <keywords_csv> [skip]" >&2
+        echo "Usage: mem.sh search <keywords_csv> [skip] [mode] [--mode <and|or|auto>]" >&2
         return 1
     fi
+
+    if [ $# -gt 0 ] && [[ "${1:-}" =~ ^-?[0-9]+$ ]]; then
+        skip="$1"
+        shift
+    fi
+
+    if [ $# -gt 0 ] && [ "${1:-}" != "--mode" ]; then
+        mode="$1"
+        shift
+    fi
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --mode)
+                if [ $# -lt 2 ]; then
+                    echo "Error: --mode requires a value (and|or|auto)" >&2
+                    return 1
+                fi
+                mode="$2"
+                shift 2
+                ;;
+            *)
+                echo "Unknown option for search: $1" >&2
+                return 1
+                ;;
+        esac
+    done
+
+    if ! [[ "$skip" =~ ^[0-9]+$ ]]; then
+        echo "Error: skip must be a non-negative integer" >&2
+        return 1
+    fi
+
+    mode=$(echo "$mode" | tr '[:upper:]' '[:lower:]')
+    case "$mode" in
+        and|or|auto) ;;
+        *)
+            echo "Error: mode must be one of: and, or, auto" >&2
+            return 1
+            ;;
+    esac
 
     local grep_args=()
     IFS=',' read -ra kw_array <<< "$keywords"
@@ -79,90 +122,108 @@ cmd_search() {
         return 1
     fi
 
-    local limit=100
-    local batch_size=200
-    local raw_skip=0
-    local remaining_skip="$skip"
-    local results=()
-    local reached_limit=0
+    run_search_for_mode() {
+        local search_mode="$1"
+        local search_skip="$2"
+        local mode_args=()
+        [ "$search_mode" = "and" ] && mode_args+=(--all-match)
 
-    local active_entries
-    active_entries=$(git -C "$MEM_DIR" ls-tree -r --name-only HEAD -- entries/ 2>/dev/null || true)
-    local active_entries_nl=$'\n'"$active_entries"$'\n'
+        local limit=100
+        local batch_size=200
+        local raw_skip=0
+        local remaining_skip="$search_skip"
+        local results=()
+        local reached_limit=0
 
-    if ! [[ "$remaining_skip" =~ ^[0-9]+$ ]]; then
-        echo "Error: skip must be a non-negative integer" >&2
-        return 1
-    fi
+        local active_entries
+        active_entries=$(git -C "$MEM_DIR" ls-tree -r --name-only HEAD -- entries/ 2>/dev/null || true)
+        local active_entries_nl=$'\n'"$active_entries"$'\n'
 
-    while [ "${#results[@]}" -lt "$limit" ]; do
-        local batch_output
-        batch_output=$(git -C "$MEM_DIR" log "${grep_args[@]}" \
-            -i --skip="$raw_skip" --max-count="$batch_size" \
-            --format=$'%H\t%s\t%cd' --date=iso \
-            --name-only --all -- entries/ 2>/dev/null || true)
+        while [ "${#results[@]}" -lt "$limit" ]; do
+            local batch_output
+            batch_output=$(git -C "$MEM_DIR" log "${grep_args[@]}" "${mode_args[@]}" \
+                -i --skip="$raw_skip" --max-count="$batch_size" \
+                --format=$'%H\t%s\t%cd' --date=iso \
+                --name-only --all -- entries/ 2>/dev/null || true)
 
-        [ -z "$batch_output" ] && break
+            [ -z "$batch_output" ] && break
 
-        local batch_count=0
-        local current_hash=""
-        local current_subject=""
-        local current_date=""
-        local current_file=""
+            local batch_count=0
+            local current_hash=""
+            local current_subject=""
+            local current_date=""
+            local current_file=""
 
-        while IFS= read -r line; do
-            [ -z "$line" ] && continue
+            while IFS= read -r line; do
+                [ -z "$line" ] && continue
 
-            local parsed_hash parsed_subject parsed_date
-            IFS=$'\t' read -r parsed_hash parsed_subject parsed_date <<< "$line"
+                local parsed_hash parsed_subject parsed_date
+                IFS=$'\t' read -r parsed_hash parsed_subject parsed_date <<< "$line"
 
-            if [[ "$parsed_hash" =~ ^[0-9a-f]{40}$ ]]; then
-                if [ -n "$current_hash" ]; then
-                    if [[ "$current_subject" != delete:\ remove* ]] && [ -n "$current_file" ] && [[ "$active_entries_nl" == *$'\n'"$current_file"$'\n'* ]]; then
-                        if [ "$remaining_skip" -gt 0 ]; then
-                            remaining_skip=$((remaining_skip - 1))
-                        else
-                            results+=("$current_hash|$current_subject|$current_date")
-                            if [ "${#results[@]}" -ge "$limit" ]; then
-                                reached_limit=1
-                                break
+                if [[ "$parsed_hash" =~ ^[0-9a-f]{40}$ ]]; then
+                    if [ -n "$current_hash" ]; then
+                        if [[ "$current_subject" != delete:\ remove* ]] && [ -n "$current_file" ] && [[ "$active_entries_nl" == *$'\n'"$current_file"$'\n'* ]]; then
+                            if [ "$remaining_skip" -gt 0 ]; then
+                                remaining_skip=$((remaining_skip - 1))
+                            else
+                                results+=("$current_hash|$current_subject|$current_date")
+                                if [ "${#results[@]}" -ge "$limit" ]; then
+                                    reached_limit=1
+                                    break
+                                fi
                             fi
                         fi
                     fi
+
+                    current_hash="$parsed_hash"
+                    current_subject="$parsed_subject"
+                    current_date="$parsed_date"
+                    current_file=""
+                    batch_count=$((batch_count + 1))
+                    continue
                 fi
 
-                current_hash="$parsed_hash"
-                current_subject="$parsed_subject"
-                current_date="$parsed_date"
-                current_file=""
-                batch_count=$((batch_count + 1))
-                continue
-            fi
+                if [ -z "$current_file" ] && [[ "$line" == entries/*.md ]]; then
+                    current_file="$line"
+                fi
+            done <<< "$batch_output"
 
-            if [ -z "$current_file" ] && [[ "$line" == entries/*.md ]]; then
-                current_file="$line"
-            fi
-        done <<< "$batch_output"
-
-        if [ "$reached_limit" -ne 1 ] && [ -n "$current_hash" ]; then
-            if [[ "$current_subject" != delete:\ remove* ]] && [ -n "$current_file" ] && [[ "$active_entries_nl" == *$'\n'"$current_file"$'\n'* ]]; then
-                if [ "$remaining_skip" -gt 0 ]; then
-                    remaining_skip=$((remaining_skip - 1))
-                else
-                    results+=("$current_hash|$current_subject|$current_date")
-                    if [ "${#results[@]}" -ge "$limit" ]; then
-                        reached_limit=1
+            if [ "$reached_limit" -ne 1 ] && [ -n "$current_hash" ]; then
+                if [[ "$current_subject" != delete:\ remove* ]] && [ -n "$current_file" ] && [[ "$active_entries_nl" == *$'\n'"$current_file"$'\n'* ]]; then
+                    if [ "$remaining_skip" -gt 0 ]; then
+                        remaining_skip=$((remaining_skip - 1))
+                    else
+                        results+=("$current_hash|$current_subject|$current_date")
+                        if [ "${#results[@]}" -ge "$limit" ]; then
+                            reached_limit=1
+                        fi
                     fi
                 fi
             fi
+
+            [ "$reached_limit" -eq 1 ] && break
+            [ "$batch_count" -lt "$batch_size" ] && break
+            raw_skip=$((raw_skip + batch_size))
+        done
+
+        printf '%s\n' "${results[@]}"
+    }
+
+    if [ "$mode" = "auto" ]; then
+        local auto_min_results=3
+        local and_results and_count
+        and_results="$(run_search_for_mode and "$skip")"
+        and_count=$(printf '%s\n' "$and_results" | awk 'NF { c++ } END { print c + 0 }')
+
+        if [ "$and_count" -ge "$auto_min_results" ]; then
+            printf '%s\n' "$and_results" | sed '/^$/d'
+        else
+            run_search_for_mode or "$skip"
         fi
+        return 0
+    fi
 
-        [ "$reached_limit" -eq 1 ] && break
-        [ "$batch_count" -lt "$batch_size" ] && break
-        raw_skip=$((raw_skip + batch_size))
-    done
-
-    printf '%s\n' "${results[@]}"
+    run_search_for_mode "$mode" "$skip"
 }
 
 cmd_read() {
@@ -266,7 +327,7 @@ case "${1:-help}" in
     *)
         echo "Usage: mem.sh {init|search|read|commit|delete}" >&2
         echo "  init                                    Initialize .mem repo" >&2
-        echo "  search <keywords_csv> [skip]            Search memories" >&2
+        echo "  search <keywords_csv> [skip] [mode] [--mode M]  Search memories (M: and|or|auto)" >&2
         echo "  read <commit_hash>                      Read memory content" >&2
         echo "  commit --file F --title T [--body B]    Commit memory entry" >&2
         echo "  delete <commit_hash>                    Delete memory entry" >&2

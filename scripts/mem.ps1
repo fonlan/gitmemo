@@ -60,11 +60,15 @@ function Invoke-Init {
 }
 
 function Invoke-Search {
-    param([string]$Keywords, [int]$Skip = 0)
+    param(
+        [string]$Keywords,
+        [int]$Skip = 0,
+        [string]$Mode = "auto"
+    )
     Ensure-Init
 
     if (-not $Keywords) {
-        Write-Error "Usage: mem.ps1 search <keywords_csv> [skip]"
+        Write-Error "Usage: mem.ps1 search <keywords_csv> [skip] [mode] [--mode <and|or|auto>]"
         return
     }
 
@@ -79,97 +83,126 @@ function Invoke-Search {
         return
     }
 
-    $limit = 100
-    $batchSize = 200
-    $rawSkip = 0
-    $remainingSkip = [Math]::Max(0, $Skip)
-    $results = New-Object System.Collections.Generic.List[string]
-
-    # Build an in-memory set of active entry files once to avoid per-commit git calls.
-    $activeEntries = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
-    $activeLines = @(& git -C $script:MemDir ls-tree -r --name-only HEAD -- entries/ 2>$null)
-    foreach ($entry in $activeLines) {
-        if ($entry -and $entry -ne "entries/.gitkeep") {
-            [void]$activeEntries.Add($entry)
-        }
+    $normalizedMode = if ($Mode) { $Mode.Trim().ToLowerInvariant() } else { "auto" }
+    if ($normalizedMode -notin @("and", "or", "auto")) {
+        Write-Error "Error: mode must be one of: and, or, auto"
+        return
     }
 
-    while ($results.Count -lt $limit) {
-        $gitArgs = @("log") + $grepArgs + @(
-            "-i", "--skip=$rawSkip", "--max-count=$batchSize",
-            "--format=%H%x09%s%x09%cd", "--date=iso",
-            "--name-only", "--all", "--", "entries/"
+    function Get-SearchResults {
+        param(
+            [string[]]$SearchGrepArgs,
+            [int]$SearchSkip,
+            [string]$SearchMode
         )
 
-        $lines = @(& git -C $script:MemDir @gitArgs 2>$null)
-        if ($lines.Count -eq 0) { break }
+        $limit = 100
+        $batchSize = 200
+        $rawSkip = 0
+        $remainingSkip = [Math]::Max(0, $SearchSkip)
+        $results = New-Object System.Collections.Generic.List[string]
+        $modeArgs = @()
+        if ($SearchMode -eq "and") { $modeArgs += "--all-match" }
 
-        $batchCommitCount = 0
-        $currentHash = ""
-        $currentSubject = ""
-        $currentDate = ""
-        $currentFile = ""
+        # Build an in-memory set of active entry files once to avoid per-commit git calls.
+        $activeEntries = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+        $activeLines = @(& git -C $script:MemDir ls-tree -r --name-only HEAD -- entries/ 2>$null)
+        foreach ($entry in $activeLines) {
+            if ($entry -and $entry -ne "entries/.gitkeep") {
+                [void]$activeEntries.Add($entry)
+            }
+        }
 
-        foreach ($line in $lines) {
-            if (-not $line) { continue }
+        while ($results.Count -lt $limit) {
+            $gitArgs = @("log") + $SearchGrepArgs + $modeArgs + @(
+                "-i", "--skip=$rawSkip", "--max-count=$batchSize",
+                "--format=%H%x09%s%x09%cd", "--date=iso",
+                "--name-only", "--all", "--", "entries/"
+            )
 
-            if ($line -match "^[0-9a-f]{40}`t") {
-                if ($currentHash) {
-                    if (
-                        $currentSubject -notlike "delete: remove *" -and
-                        $currentFile -and
-                        $activeEntries.Contains($currentFile)
-                    ) {
-                        if ($remainingSkip -gt 0) {
-                            $remainingSkip--
-                        } else {
-                            $results.Add("$currentHash|$currentSubject|$currentDate")
-                            if ($results.Count -ge $limit) { break }
+            $lines = @(& git -C $script:MemDir @gitArgs 2>$null)
+            if ($lines.Count -eq 0) { break }
+
+            $batchCommitCount = 0
+            $currentHash = ""
+            $currentSubject = ""
+            $currentDate = ""
+            $currentFile = ""
+
+            foreach ($line in $lines) {
+                if (-not $line) { continue }
+
+                if ($line -match "^[0-9a-f]{40}`t") {
+                    if ($currentHash) {
+                        if (
+                            $currentSubject -notlike "delete: remove *" -and
+                            $currentFile -and
+                            $activeEntries.Contains($currentFile)
+                        ) {
+                            if ($remainingSkip -gt 0) {
+                                $remainingSkip--
+                            } else {
+                                $results.Add("$currentHash|$currentSubject|$currentDate")
+                                if ($results.Count -ge $limit) { break }
+                            }
                         }
                     }
-                }
 
-                $parts = $line -split "`t", 3
-                if ($parts.Count -lt 3) {
-                    $currentHash = ""
-                    $currentSubject = ""
-                    $currentDate = ""
+                    $parts = $line -split "`t", 3
+                    if ($parts.Count -lt 3) {
+                        $currentHash = ""
+                        $currentSubject = ""
+                        $currentDate = ""
+                        $currentFile = ""
+                        continue
+                    }
+
+                    $currentHash = $parts[0]
+                    $currentSubject = $parts[1]
+                    $currentDate = $parts[2]
                     $currentFile = ""
+                    $batchCommitCount++
                     continue
                 }
 
-                $currentHash = $parts[0]
-                $currentSubject = $parts[1]
-                $currentDate = $parts[2]
-                $currentFile = ""
-                $batchCommitCount++
-                continue
-            }
-
-            if (-not $currentFile -and $line -like "entries/*.md") {
-                $currentFile = $line.Trim()
-            }
-        }
-
-        if ($results.Count -lt $limit -and $currentHash) {
-            if (
-                $currentSubject -notlike "delete: remove *" -and
-                $currentFile -and
-                $activeEntries.Contains($currentFile)
-            ) {
-                if ($remainingSkip -gt 0) {
-                    $remainingSkip--
-                } else {
-                    $results.Add("$currentHash|$currentSubject|$currentDate")
+                if (-not $currentFile -and $line -like "entries/*.md") {
+                    $currentFile = $line.Trim()
                 }
             }
+
+            if ($results.Count -lt $limit -and $currentHash) {
+                if (
+                    $currentSubject -notlike "delete: remove *" -and
+                    $currentFile -and
+                    $activeEntries.Contains($currentFile)
+                ) {
+                    if ($remainingSkip -gt 0) {
+                        $remainingSkip--
+                    } else {
+                        $results.Add("$currentHash|$currentSubject|$currentDate")
+                    }
+                }
+            }
+
+            if ($batchCommitCount -lt $batchSize) { break }
+            $rawSkip += $batchSize
         }
 
-        if ($batchCommitCount -lt $batchSize) { break }
-        $rawSkip += $batchSize
+        $results
     }
 
-    $results
+    if ($normalizedMode -eq "auto") {
+        $autoMinResults = 3
+        $andResults = @(Get-SearchResults -SearchGrepArgs $grepArgs -SearchSkip $Skip -SearchMode "and")
+        if ($andResults.Count -ge $autoMinResults) {
+            $andResults
+        } else {
+            Get-SearchResults -SearchGrepArgs $grepArgs -SearchSkip $Skip -SearchMode "or"
+        }
+        return
+    }
+
+    Get-SearchResults -SearchGrepArgs $grepArgs -SearchSkip $Skip -SearchMode $normalizedMode
 }
 
 function Invoke-Read {
@@ -265,8 +298,38 @@ switch ($Command) {
     "init"   { Invoke-Init }
     "search" {
         $kw = if ($Args.Count -ge 1) { $Args[0] } else { "" }
-        $sk = if ($Args.Count -ge 2) { [int]$Args[1] } else { 0 }
-        Invoke-Search -Keywords $kw -Skip $sk
+        $sk = 0
+        $mode = "auto"
+        $idx = 1
+
+        if ($Args.Count -ge 2 -and $Args[1] -match "^-?\d+$") {
+            $sk = [int]$Args[1]
+            $idx = 2
+        }
+
+        if ($Args.Count -gt $idx -and $Args[$idx] -ne "--mode") {
+            $mode = $Args[$idx]
+            $idx++
+        }
+
+        while ($idx -lt $Args.Count) {
+            switch ($Args[$idx]) {
+                "--mode" {
+                    if ($idx + 1 -ge $Args.Count) {
+                        Write-Error "Error: --mode requires a value (and|or|auto)"
+                        return
+                    }
+                    $mode = $Args[$idx + 1]
+                    $idx += 2
+                }
+                default {
+                    Write-Error "Unknown option for search: $($Args[$idx])"
+                    return
+                }
+            }
+        }
+
+        Invoke-Search -Keywords $kw -Skip $sk -Mode $mode
     }
     "read"   { Invoke-Read -CommitHash ($Args | Select-Object -First 1) }
     "commit" { Invoke-Commit -Params $Args }
@@ -274,7 +337,7 @@ switch ($Command) {
     default  {
         Write-Host "Usage: mem.ps1 {init|search|read|commit|delete}"
         Write-Host "  init                                    Initialize .mem repo"
-        Write-Host "  search <keywords_csv> [skip]            Search memories"
+        Write-Host "  search <keywords_csv> [skip] [mode] [--mode M]  Search memories (M: and|or|auto)"
         Write-Host "  read <commit_hash>                      Read memory content"
         Write-Host "  commit --file F --title T [--body B]    Commit memory entry"
         Write-Host "  delete <commit_hash>                    Delete memory entry"

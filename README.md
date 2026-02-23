@@ -8,6 +8,7 @@ A fully automated skill that gives coding agents long-term memory through a **lo
 
 - Stores completed task outcomes as markdown entries under `.mem/entries/`
 - Runs memory operations automatically (`init`, `search`, `read`, `commit`, `delete`) during agent tasks
+- Supports `search` match modes: `and`, `or`, and default `auto` (AND-first, OR fallback)
 - Aligns the `.mem` branch with the current project branch on commit
 - Integrates with agent instruction files so all agents follow the same memory policy
 

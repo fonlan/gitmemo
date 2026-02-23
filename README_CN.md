@@ -6,6 +6,7 @@
 
 - 将已完成任务沉淀为 `.mem/entries/` 下的 Markdown 记忆条目
 - 在代理任务过程中自动执行：`init`、`search`、`read`、`commit`、`delete`
+- `search` 支持 `and`、`or`、默认 `auto` 三种匹配模式（先 AND，不足再回退 OR）
 - `commit` 时自动将 `.mem` 分支与当前项目分支对齐
 - 可通过各类代理指令文件统一约束记忆流程
 

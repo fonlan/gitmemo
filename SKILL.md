@@ -24,11 +24,17 @@ bash <SKILL_DIR>/scripts/mem.sh init
 ### search — Search Memories
 
 ```bash
-bash <SKILL_DIR>/scripts/mem.sh search <keywords_csv> [skip]
+bash <SKILL_DIR>/scripts/mem.sh search <keywords_csv> [skip] [mode]
+# or
+bash <SKILL_DIR>/scripts/mem.sh search <keywords_csv> [skip] --mode <and|or|auto>
 ```
 
-- `keywords_csv`: comma-separated keywords, OR-matched
+- `keywords_csv`: comma-separated keywords
 - `skip`: skip first N results (default 0) for pagination
+- `mode`: `and`, `or`, or `auto` (default `auto`)
+  - `and`: add `--all-match` for lower noise
+  - `or`: keep broad recall
+  - `auto`: try `and` first, fallback to `or` if results are too few
 - Returns up to 100 results per call, format: `hash|title|date`
 
 ### read — Read Memory
