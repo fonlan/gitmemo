@@ -64,8 +64,9 @@ After setup, the agent handles `.mem` initialization, search, read, write, and d
 
 1. Extract 3-5 keywords from the user request.
 2. Run `search` with `skip=0`.
-3. If not relevant, paginate with `skip=100` and `skip=200`.
-4. If relevant memories exist, run `read` and reuse conclusions when appropriate.
+3. If more than 5 relevant results are returned, let the agent select only the 5 most likely memories (keyword overlap, title specificity, recency) before reading.
+4. If not relevant, paginate with `skip=100` and `skip=200`.
+5. If relevant memories exist, run `read` only on the selected memories and reuse conclusions when appropriate.
 
 ### 2. After Completion: Write
 

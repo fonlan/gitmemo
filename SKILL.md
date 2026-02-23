@@ -132,9 +132,10 @@ The first paragraph is a concise summary of the task (what was done and why). Ke
 1. Generate 3-5 relevant keywords from the user request
 2. Call `search` interface
 3. Evaluate whether returned results are relevant
-4. If not relevant, paginate with `skip=100` for the next batch (up to 3 batches: skip=0, 100, 200)
-5. If relevant memories found, call `read` to get full md content
-6. Decide whether the stored conclusion can solve the current problem:
+4. If relevant results are more than 5, select only the 5 most likely memories to read (prioritize keyword overlap, title specificity, and recency)
+5. If not relevant, paginate with `skip=100` for the next batch (up to 3 batches: skip=0, 100, 200)
+6. If relevant memories found, call `read` only for the selected memories to get full md content
+7. Decide whether the stored conclusion can solve the current problem:
    - **Yes** → return the stored conclusion directly
    - **Partially** → use the memory as reference context and generate a new solution
 

@@ -62,8 +62,9 @@ git submodule add https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
 
 1. 从用户请求提取 3-5 个关键词
 2. 先执行 `search`（`skip=0`）
-3. 若无相关结果，再分页执行 `skip=100`、`skip=200`
-4. 命中后使用 `read` 查看详情并复用结论
+3. 若返回的相关结果超过 5 条，先由代理按相关性选出最可能的 5 条（关键词重合度、标题明确性、时间新近性）再读取
+4. 若无相关结果，再分页执行 `skip=100`、`skip=200`
+5. 命中后仅对选中的条目使用 `read` 查看详情并复用结论
 
 ### 2. 完成任务后：写入记忆
 
