@@ -21,6 +21,10 @@ Repository: `https://github.com/fonlan/gitmemo.git`
 - `agents-template.md`
 - `scripts/mem.ps1`
 - `scripts/mem.sh`
+5. Verify AGENTS template integration:
+- `global` mode must check `~/.agents/AGENTS.md`
+- `project` mode must check `<project_root>/AGENTS.md`
+- The target `AGENTS.md` must contain the content of `agents-template.md`
 
 ## Standard Procedure
 
@@ -31,9 +35,11 @@ Repository: `https://github.com/fonlan/gitmemo.git`
 - Else if target exists, rename target to `*.bak.<timestamp>` and clone fresh.
 - Else clone directly.
 4. Validate required files exist.
-5. Return:
+5. Validate that the mode-specific `AGENTS.md` contains `agents-template.md` content.
+6. Return:
 - final install path
 - current commit short hash
+- AGENTS check result
 
 ## Mode: Global Install
 
@@ -41,6 +47,7 @@ Target path:
 
 - Linux/macOS: `~/.agents/skills/gitmemo`
 - Windows: `%USERPROFILE%\\.agents\\skills\\gitmemo`
+- AGENTS file to validate: `~/.agents/AGENTS.md`
 
 Bash example:
 
@@ -70,8 +77,20 @@ for f in SKILL.md agents-template.md scripts/mem.ps1 scripts/mem.sh; do
   [ -e "$target/$f" ] || { echo "Missing file: $f" >&2; exit 1; }
 done
 
+agents_file="$HOME/.agents/AGENTS.md"
+template_file="$target/agents-template.md"
+[ -e "$agents_file" ] || { echo "Missing AGENTS.md: $agents_file" >&2; exit 1; }
+
+# Normalize CRLF and ensure AGENTS.md contains the full template text.
+template_text="$(tr -d '\r' < "$template_file")"
+agents_text="$(tr -d '\r' < "$agents_file")"
+if ! awk -v txt="$agents_text" -v tmpl="$template_text" 'BEGIN { exit(index(txt, tmpl) ? 0 : 1) }'; then
+  echo "AGENTS.md does not contain agents-template.md content: $agents_file" >&2
+  exit 1
+fi
+
 rev="$(git -C "$target" rev-parse --short HEAD)"
-echo "Installed: $target @ $rev"
+echo "Installed: $target @ $rev | AGENTS check: pass ($agents_file)"
 ```
 
 PowerShell example:
@@ -102,8 +121,17 @@ $required = @("SKILL.md","agents-template.md","scripts/mem.ps1","scripts/mem.sh"
 $missing = $required | Where-Object { -not (Test-Path (Join-Path $target $_)) }
 if ($missing.Count -gt 0) { throw "Missing files: $($missing -join ', ')" }
 
+$agentsPath = Join-Path $HOME ".agents/AGENTS.md"
+if (-not (Test-Path $agentsPath)) { throw "Missing AGENTS.md: $agentsPath" }
+
+$templateText = ((Get-Content (Join-Path $target "agents-template.md") -Raw) -replace "`r`n", "`n").Trim()
+$agentsText = ((Get-Content $agentsPath -Raw) -replace "`r`n", "`n")
+if (-not $agentsText.Contains($templateText)) {
+  throw "AGENTS.md does not contain agents-template.md content: $agentsPath"
+}
+
 $rev = git -C $target rev-parse --short HEAD
-Write-Output "Installed: $target @ $rev"
+Write-Output "Installed: $target @ $rev | AGENTS check: pass ($agentsPath)"
 ```
 
 ## Mode: Project Install
@@ -111,6 +139,7 @@ Write-Output "Installed: $target @ $rev"
 Target path:
 
 - `<project_root>/.agents/skills/gitmemo`
+- AGENTS file to validate: `<project_root>/AGENTS.md`
 
 Bash example (run from project root):
 
@@ -140,8 +169,20 @@ for f in SKILL.md agents-template.md scripts/mem.ps1 scripts/mem.sh; do
   [ -e "$target/$f" ] || { echo "Missing file: $f" >&2; exit 1; }
 done
 
+agents_file="$(pwd)/AGENTS.md"
+template_file="$target/agents-template.md"
+[ -e "$agents_file" ] || { echo "Missing AGENTS.md: $agents_file" >&2; exit 1; }
+
+# Normalize CRLF and ensure AGENTS.md contains the full template text.
+template_text="$(tr -d '\r' < "$template_file")"
+agents_text="$(tr -d '\r' < "$agents_file")"
+if ! awk -v txt="$agents_text" -v tmpl="$template_text" 'BEGIN { exit(index(txt, tmpl) ? 0 : 1) }'; then
+  echo "AGENTS.md does not contain agents-template.md content: $agents_file" >&2
+  exit 1
+fi
+
 rev="$(git -C "$target" rev-parse --short HEAD)"
-echo "Installed: $target @ $rev"
+echo "Installed: $target @ $rev | AGENTS check: pass ($agents_file)"
 ```
 
 PowerShell example (run from project root):
@@ -172,14 +213,23 @@ $required = @("SKILL.md","agents-template.md","scripts/mem.ps1","scripts/mem.sh"
 $missing = $required | Where-Object { -not (Test-Path (Join-Path $target $_)) }
 if ($missing.Count -gt 0) { throw "Missing files: $($missing -join ', ')" }
 
+$agentsPath = Join-Path (Get-Location) "AGENTS.md"
+if (-not (Test-Path $agentsPath)) { throw "Missing AGENTS.md: $agentsPath" }
+
+$templateText = ((Get-Content (Join-Path $target "agents-template.md") -Raw) -replace "`r`n", "`n").Trim()
+$agentsText = ((Get-Content $agentsPath -Raw) -replace "`r`n", "`n")
+if (-not $agentsText.Contains($templateText)) {
+  throw "AGENTS.md does not contain agents-template.md content: $agentsPath"
+}
+
 $rev = git -C $target rev-parse --short HEAD
-Write-Output "Installed: $target @ $rev"
+Write-Output "Installed: $target @ $rev | AGENTS check: pass ($agentsPath)"
 ```
 
 ## One-Sentence Prompts (For Users)
 
 - Global install:
-`Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo to ~/.agents/skills/gitmemo in global mode, then report the installed path and commit.`
+`Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo to ~/.agents/skills/gitmemo in global mode, then verify ~/.agents/AGENTS.md contains agents-template.md content and report path, commit, and AGENTS check result.`
 
 - Project install:
-`Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo to .agents/skills/gitmemo in the current project in project mode, then report the installed path and commit.`
+`Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo to .agents/skills/gitmemo in the current project in project mode, then verify ./AGENTS.md contains agents-template.md content and report path, commit, and AGENTS check result.`
