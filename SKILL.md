@@ -166,7 +166,3 @@ If the user explicitly asks to remember, this overrides the "valuable conclusion
 1. Call `delete` to remove the corresponding memory
 2. Redo the task per user feedback
 3. Write the new memory
-
-## AGENTS.md Integration
-
-Add the content from [agents-template.md](agents-template.md) to the project's `AGENTS.md` so all AI agents automatically follow the memory workflow.

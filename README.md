@@ -68,11 +68,12 @@ Two automation modes are supported:
 - Project install to `<project_root>/.agents/skills/gitmemo`
 
 Example one-sentence prompts:
-
+- Install to global
 ```text
 Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode, then report installed path, commit, and a manual next step to update your tool instruction file with agents-template.md.
 ```
 
+- Install to current project
 ```text
 Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in project mode for the current repository, then report installed path, commit, and instruction integration sync result.
 ```

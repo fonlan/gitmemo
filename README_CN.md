@@ -66,11 +66,12 @@ git submodule add https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
 - 当前项目安装到 `<project_root>/.agents/skills/gitmemo`
 
 可直接给代理的一句话示例：
-
+- 安装到全局
 ```text
 根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 global 模式安装 gitmemo，并汇报安装路径、commit，以及提醒用户手动把 agents-template.md 写入工具指令文件。
 ```
 
+- 安装到当前项目
 ```text
 根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 project 模式安装当前仓库的 gitmemo，并汇报安装路径、commit 和指令集成同步结果。
 ```
