@@ -26,11 +26,11 @@
 - `scripts/mem.ps1`：供代理调用的 Windows 运行时接口
 - `scripts/mem.sh`：供代理调用的 Linux/macOS 运行时接口
 
-## 快速开始
+## 安装
 
-### 1. 将本 Skill 安装到你的项目中
+### 1. 手动安装（用户执行）
 
-在项目根目录执行：
+在当前项目根目录执行：
 
 ```bash
 git clone https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
@@ -42,9 +42,7 @@ git clone https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
 git submodule add https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
 ```
 
-### 2. 将 `agents-template.md` 指令写入你的 AI 工具
-
-把 `./.agents/skills/gitmemo/agents-template.md` 内容复制到对应工具的项目级指令文件：
+然后把 `./.agents/skills/gitmemo/agents-template.md` 内容复制到对应工具的项目级指令文件：
 
 | AI 工具 | 项目指令文件 | 说明 |
 | --- | --- | --- |
@@ -54,7 +52,28 @@ git submodule add https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
 | Trae | `.trae/rules/project_rules.md` | 可在 Trae 的 “Rules > Project Rules” 中创建并粘贴同样指令。 |
 | 其他代理工具 | `AGENTS.md`（推荐） | 如果工具支持 `AGENTS.md`，可直接复用同一模板。 |
 
-完成以上配置后，代理会在任务过程中自动处理 `.mem` 初始化、检索、读取、写入和删除；用户不需要手动介入记忆操作。
+### 2. 全自动安装（代理执行）
+
+让 coding agent 严格按 `INSTALL.md` 流程执行安装：
+
+- [INSTALL.md](./INSTALL.md)
+
+支持两种自动化模式：
+
+- 全局安装到 `~/.agents/skills/gitmemo`
+- 当前项目安装到 `<project_root>/.agents/skills/gitmemo`
+
+可直接给代理的一句话示例：
+
+```text
+根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 global 模式把 gitmemo 安装到 ~/.agents/skills/gitmemo，并汇报安装路径和 commit。
+```
+
+```text
+根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 project 模式把 gitmemo 安装到当前项目的 .agents/skills/gitmemo，并汇报安装路径和 commit。
+```
+
+安装完成后，代理会在任务过程中自动处理 `.mem` 初始化、检索、读取、写入和删除；用户不需要手动介入记忆操作。
 
 ## 代理工作流
 

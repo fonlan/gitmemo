@@ -28,25 +28,23 @@ Practical guidance: use Git memory as the auditable "source-of-truth layer", the
 - `scripts/mem.ps1`: Windows runtime interface used by agents
 - `scripts/mem.sh`: Linux/macOS runtime interface used by agents
 
-## Quick Start
+## Installation
 
-### 1. Install this skill into your project
+### 1. Manual Install (User-Executed)
 
-From your project root:
+Install into the current project from project root:
 
 ```bash
 git clone https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
 ```
 
-Or add it as a submodule:
+Or use a submodule:
 
 ```bash
 git submodule add https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
 ```
 
-### 2. Add `agents-template.md` instructions to your AI tool
-
-Copy the content of `./.agents/skills/gitmemo/agents-template.md` into your tool's project-level instruction file:
+Then copy `./.agents/skills/gitmemo/agents-template.md` into your tool's project instruction file:
 
 | AI tool | Project instruction file | Notes |
 | --- | --- | --- |
@@ -56,7 +54,28 @@ Copy the content of `./.agents/skills/gitmemo/agents-template.md` into your tool
 | Trae | `.trae/rules/project_rules.md` | Create via Trae "Rules > Project Rules" and paste the same workflow instructions. |
 | Other agent tools | `AGENTS.md` (recommended) | If the tool supports `AGENTS.md`, reuse the same template directly. |
 
-After setup, the agent handles `.mem` initialization, search, read, write, and delete automatically during tasks. No user-side memory command operations are required.
+### 2. Fully Automated Install (Agent-Executed)
+
+Use `INSTALL.md` as the execution contract for coding agents:
+
+- [INSTALL.md](./INSTALL.md)
+
+Two automation modes are supported:
+
+- Global install to `~/.agents/skills/gitmemo`
+- Project install to `<project_root>/.agents/skills/gitmemo`
+
+Example one-sentence prompts:
+
+```text
+Install gitmemo to ~/.agents/skills/gitmemo in global mode by following https://github.com/fonlan/gitmemo/blob/main/INSTALL.md, then report installed path and commit.
+```
+
+```text
+Install gitmemo to .agents/skills/gitmemo in the current project in project mode by following https://github.com/fonlan/gitmemo/blob/main/INSTALL.md, then report installed path and commit.
+```
+
+After installation, the agent handles `.mem` initialization, search, read, write, and delete automatically during tasks.
 
 ## Agent Workflow
 
