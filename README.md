@@ -45,6 +45,7 @@ git submodule add https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
 ```
 
 Then copy `./.agents/skills/gitmemo/agents-template.md` into your tool's project instruction file:
+Copy it as-is, including the marker lines `# >>> gitmemo:agents-template:start` and `# <<< gitmemo:agents-template:end`, so future project-mode auto installs can sync the managed block safely.
 
 | AI tool | Project instruction file | Notes |
 | --- | --- | --- |
@@ -73,7 +74,7 @@ Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmem
 ```
 
 ```text
-Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in project mode for the current repository, then report installed path, commit, and AGENTS check result.
+Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in project mode for the current repository, then report installed path, commit, and instruction integration sync result.
 ```
 
 After installation, the agent handles `.mem` initialization, search, read, write, and delete automatically during tasks.

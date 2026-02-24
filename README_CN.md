@@ -43,6 +43,7 @@ git submodule add https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
 ```
 
 然后把 `./.agents/skills/gitmemo/agents-template.md` 内容复制到对应工具的项目级指令文件：
+请原样复制（包含 `# >>> gitmemo:agents-template:start` 和 `# <<< gitmemo:agents-template:end` 标记行），这样后续 project 模式自动安装才能安全同步管理块并避免重复。
 
 | AI 工具 | 项目指令文件 | 说明 |
 | --- | --- | --- |
@@ -71,7 +72,7 @@ git submodule add https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
 ```
 
 ```text
-根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 project 模式安装当前仓库的 gitmemo，并汇报安装路径、commit 和 AGENTS 检查结果。
+根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 project 模式安装当前仓库的 gitmemo，并汇报安装路径、commit 和指令集成同步结果。
 ```
 
 安装完成后，代理会在任务过程中自动处理 `.mem` 初始化、检索、读取、写入和删除；用户不需要手动介入记忆操作。
