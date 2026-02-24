@@ -19,8 +19,6 @@ A fully automated skill that gives coding agents long-term memory through a **lo
 | Git-based memory (GitMemo) | Fully auditable and traceable via Git history; Git-only dependency and simple setup; naturally aligned with code branches and review workflows | Weaker semantic retrieval (mostly keyword/structured text driven); less efficient than vector indexes at very large scale; weaker cross-repo aggregation | Single-repo or small/medium teams that prioritize explainability, auditability, and low ops cost |
 | Vector-database memory | Strong semantic search for paraphrases and fuzzy queries; scales well for large corpora and cross-project knowledge; can improve recall/ranking with rerankers | Requires extra infra (vector DB + embedding service); higher cost and ops complexity; usually less interpretable than Git history | Large knowledge bases, cross-project retrieval, and use cases that need high semantic recall |
 
-Practical guidance: use Git memory as the auditable "source-of-truth layer", then add vector retrieval as a "discovery layer" when semantic recall becomes a bottleneck.
-
 ## File Layout
 
 - `SKILL.md`: skill definition and workflow rules
