@@ -50,7 +50,7 @@ Then copy `./.agents/skills/gitmemo/agents-template.md` into your tool's project
 | --- | --- | --- |
 | Claude Code | `CLAUDE.md` | Claude Code loads project memory from this file. |
 | Codex | `AGENTS.md` | Codex reads repo/user `AGENTS.md` instructions. |
-| GitHub Copilot | `.github/copilot-instructions.md` | You can also add scoped rules under `.github/instructions/*.instructions.md`. |
+| GitHub Copilot | `.github/copilot-instructions.md` | You can also add scoped rules under `.github/instructions/*.instructions.md`. Enable `chat.useAgentsMdFile` in VS Code (open `vscode://settings/chat.useAgentsMdFile`) so Copilot can read `AGENTS.md`. |
 | Trae | `.trae/rules/project_rules.md` | Create via Trae "Rules > Project Rules" and paste the same workflow instructions. |
 | Other agent tools | `AGENTS.md` (recommended) | If the tool supports `AGENTS.md`, reuse the same template directly. |
 
@@ -62,17 +62,18 @@ Use `INSTALL.md` as the execution contract for coding agents:
 
 Two automation modes are supported:
 
-- Global install to `~/.agents/skills/gitmemo`
+- Global install to the home skill directory:
+  `~/.agents/skills/gitmemo` (Linux/macOS) or `%USERPROFILE%\\.agents\\skills\\gitmemo` (Windows)
 - Project install to `<project_root>/.agents/skills/gitmemo`
 
 Example one-sentence prompts:
 
 ```text
-Install gitmemo to ~/.agents/skills/gitmemo in global mode by following https://github.com/fonlan/gitmemo/blob/main/INSTALL.md, then report installed path and commit.
+Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode, then report installed path, commit, and a manual next step to update your tool instruction file with agents-template.md.
 ```
 
 ```text
-Install gitmemo to .agents/skills/gitmemo in the current project in project mode by following https://github.com/fonlan/gitmemo/blob/main/INSTALL.md, then report installed path and commit.
+Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in project mode for the current repository, then report installed path, commit, and AGENTS check result.
 ```
 
 After installation, the agent handles `.mem` initialization, search, read, write, and delete automatically during tasks.

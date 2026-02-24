@@ -21,10 +21,10 @@ Repository: `https://github.com/fonlan/gitmemo.git`
 - `agents-template.md`
 - `scripts/mem.ps1`
 - `scripts/mem.sh`
-5. Verify AGENTS template integration:
-- `global` mode must check `~/.agents/AGENTS.md`
-- `project` mode must check `<project_root>/AGENTS.md`
-- The target `AGENTS.md` must contain the content of `agents-template.md`
+5. Handle instruction-file integration by mode:
+- `project` mode must check `<project_root>/AGENTS.md` contains `agents-template.md` content.
+- `global` mode must not auto-update or validate a shared `AGENTS.md` path.
+- `global` mode must return a manual next step for the user to update their tool instruction file.
 
 ## Standard Procedure
 
@@ -35,11 +35,12 @@ Repository: `https://github.com/fonlan/gitmemo.git`
 - Else if target exists, rename target to `*.bak.<timestamp>` and clone fresh.
 - Else clone directly.
 4. Validate required files exist.
-5. Validate that the mode-specific `AGENTS.md` contains `agents-template.md` content.
-6. Return:
+5. For `project` mode, validate `<project_root>/AGENTS.md` contains `agents-template.md` content.
+6. For `global` mode, skip AGENTS validation and output a manual instruction-file update reminder.
+7. Return:
 - final install path
 - current commit short hash
-- AGENTS check result
+- instruction integration status (`manual-required` for global, `validated` for project)
 
 ## Mode: Global Install
 
@@ -47,7 +48,7 @@ Target path:
 
 - Linux/macOS: `~/.agents/skills/gitmemo`
 - Windows: `%USERPROFILE%\\.agents\\skills\\gitmemo`
-- AGENTS file to validate: `~/.agents/AGENTS.md`
+- Instruction integration: manual update required in global mode
 
 Bash example:
 
@@ -77,20 +78,9 @@ for f in SKILL.md agents-template.md scripts/mem.ps1 scripts/mem.sh; do
   [ -e "$target/$f" ] || { echo "Missing file: $f" >&2; exit 1; }
 done
 
-agents_file="$HOME/.agents/AGENTS.md"
-template_file="$target/agents-template.md"
-[ -e "$agents_file" ] || { echo "Missing AGENTS.md: $agents_file" >&2; exit 1; }
-
-# Normalize CRLF and ensure AGENTS.md contains the full template text.
-template_text="$(tr -d '\r' < "$template_file")"
-agents_text="$(tr -d '\r' < "$agents_file")"
-if ! awk -v txt="$agents_text" -v tmpl="$template_text" 'BEGIN { exit(index(txt, tmpl) ? 0 : 1) }'; then
-  echo "AGENTS.md does not contain agents-template.md content: $agents_file" >&2
-  exit 1
-fi
-
 rev="$(git -C "$target" rev-parse --short HEAD)"
-echo "Installed: $target @ $rev | AGENTS check: pass ($agents_file)"
+manual_note="Manual step required: add $target/agents-template.md to your tool instruction file (for example AGENTS.md, CLAUDE.md, or .github/copilot-instructions.md)."
+echo "Installed: $target @ $rev | Instruction integration: manual-required | $manual_note"
 ```
 
 PowerShell example:
@@ -121,17 +111,9 @@ $required = @("SKILL.md","agents-template.md","scripts/mem.ps1","scripts/mem.sh"
 $missing = $required | Where-Object { -not (Test-Path (Join-Path $target $_)) }
 if ($missing.Count -gt 0) { throw "Missing files: $($missing -join ', ')" }
 
-$agentsPath = Join-Path $HOME ".agents/AGENTS.md"
-if (-not (Test-Path $agentsPath)) { throw "Missing AGENTS.md: $agentsPath" }
-
-$templateText = ((Get-Content (Join-Path $target "agents-template.md") -Raw) -replace "`r`n", "`n").Trim()
-$agentsText = ((Get-Content $agentsPath -Raw) -replace "`r`n", "`n")
-if (-not $agentsText.Contains($templateText)) {
-  throw "AGENTS.md does not contain agents-template.md content: $agentsPath"
-}
-
 $rev = git -C $target rev-parse --short HEAD
-Write-Output "Installed: $target @ $rev | AGENTS check: pass ($agentsPath)"
+$manualNote = "Manual step required: add $target/agents-template.md to your tool instruction file (for example AGENTS.md, CLAUDE.md, or .github/copilot-instructions.md)."
+Write-Output "Installed: $target @ $rev | Instruction integration: manual-required | $manualNote"
 ```
 
 ## Mode: Project Install
@@ -229,7 +211,7 @@ Write-Output "Installed: $target @ $rev | AGENTS check: pass ($agentsPath)"
 ## One-Sentence Prompts (For Users)
 
 - Global install:
-`Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo to ~/.agents/skills/gitmemo in global mode, then verify ~/.agents/AGENTS.md contains agents-template.md content and report path, commit, and AGENTS check result.`
+`Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode, do not validate or update a shared AGENTS.md path, and report installed path, commit, and a manual next step for instruction-file update using agents-template.md.`
 
 - Project install:
 `Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo to .agents/skills/gitmemo in the current project in project mode, then verify ./AGENTS.md contains agents-template.md content and report path, commit, and AGENTS check result.`

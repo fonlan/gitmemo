@@ -48,7 +48,7 @@ git submodule add https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
 | --- | --- | --- |
 | Claude Code | `CLAUDE.md` | Claude Code 会从该文件读取项目规则。 |
 | Codex | `AGENTS.md` | Codex 会读取仓库/用户级 `AGENTS.md` 指令。 |
-| GitHub Copilot | `.github/copilot-instructions.md` | 也可在 `.github/instructions/*.instructions.md` 中写更细粒度规则。 |
+| GitHub Copilot | `.github/copilot-instructions.md` | 也可在 `.github/instructions/*.instructions.md` 中写更细粒度规则。需在 VS Code 启用 `chat.useAgentsMdFile`（可打开 `vscode://settings/chat.useAgentsMdFile`）以便 Copilot 正确读取 `AGENTS.md`。 |
 | Trae | `.trae/rules/project_rules.md` | 可在 Trae 的 “Rules > Project Rules” 中创建并粘贴同样指令。 |
 | 其他代理工具 | `AGENTS.md`（推荐） | 如果工具支持 `AGENTS.md`，可直接复用同一模板。 |
 
@@ -60,17 +60,18 @@ git submodule add https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
 
 支持两种自动化模式：
 
-- 全局安装到 `~/.agents/skills/gitmemo`
+- 全局安装到用户主目录下 skill 路径：
+  Linux/macOS 使用 `~/.agents/skills/gitmemo`，Windows 使用 `%USERPROFILE%\\.agents\\skills\\gitmemo`
 - 当前项目安装到 `<project_root>/.agents/skills/gitmemo`
 
 可直接给代理的一句话示例：
 
 ```text
-根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 global 模式把 gitmemo 安装到 ~/.agents/skills/gitmemo，并汇报安装路径和 commit。
+根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 global 模式安装 gitmemo，并汇报安装路径、commit，以及提醒用户手动把 agents-template.md 写入工具指令文件。
 ```
 
 ```text
-根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 project 模式把 gitmemo 安装到当前项目的 .agents/skills/gitmemo，并汇报安装路径和 commit。
+根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 project 模式安装当前仓库的 gitmemo，并汇报安装路径、commit 和 AGENTS 检查结果。
 ```
 
 安装完成后，代理会在任务过程中自动处理 `.mem` 初始化、检索、读取、写入和删除；用户不需要手动介入记忆操作。
