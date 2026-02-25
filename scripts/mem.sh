@@ -52,6 +52,121 @@ sync_branch() {
     echo "$repo_branch"
 }
 
+normalize_entry_file() {
+    local file="$1"
+    if [ -z "$file" ]; then
+        echo ""
+        return
+    fi
+
+    case "$file" in
+        entries/*) echo "$file" ;;
+        *) echo "entries/$file" ;;
+    esac
+}
+
+is_safe_entry_path() {
+    local file="$1"
+    case "$file" in
+        /*|*../*|*/..|../*|*\\*|*:*)
+            return 1
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+}
+
+slugify_title() {
+    local title="$1"
+    local slug
+    slug=$(printf '%s' "$title" \
+        | tr '[:upper:]' '[:lower:]' \
+        | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
+    if [ -z "$slug" ]; then
+        slug="memory-entry"
+    fi
+    echo "$slug"
+}
+
+cmd_write() {
+    ensure_init
+    local file="" title="" body="" content="" content_file=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --file)         file="$2";         shift 2;;
+            --title)        title="$2";        shift 2;;
+            --body)         body="$2";         shift 2;;
+            --content)      content="$2";      shift 2;;
+            --content-file) content_file="$2"; shift 2;;
+            *) echo "Unknown option: $1" >&2; return 1;;
+        esac
+    done
+
+    if [ -z "$title" ]; then
+        echo "Usage: mem.sh write --title <title> [--file <path>] (--content <markdown> | --content-file <path>) [--body <body>]" >&2
+        return 1
+    fi
+
+    if [ -n "$content" ] && [ -n "$content_file" ]; then
+        echo "Error: use only one of --content or --content-file" >&2
+        return 1
+    fi
+
+    if [ -z "$content" ] && [ -z "$content_file" ]; then
+        echo "Error: missing content. Use --content or --content-file." >&2
+        return 1
+    fi
+
+    if [ -n "$content_file" ] && [ ! -f "$content_file" ]; then
+        echo "Error: content file not found: $content_file" >&2
+        return 1
+    fi
+
+    if [ -z "$file" ]; then
+        local ts slug
+        ts=$(date -u +"%Y%m%dT%H%M%SZ")
+        slug=$(slugify_title "$title")
+        file="entries/$ts-$slug.md"
+    else
+        file=$(normalize_entry_file "$file")
+    fi
+
+    if ! is_safe_entry_path "$file"; then
+        echo "Error: invalid file path: $file" >&2
+        return 1
+    fi
+
+    case "$file" in
+        *.md) ;;
+        *) file="${file}.md" ;;
+    esac
+
+    sync_branch >/dev/null
+
+    local full_path
+    full_path="$MEM_DIR/$file"
+    mkdir -p "$(dirname "$full_path")"
+
+    if [ -n "$content_file" ]; then
+        cat "$content_file" > "$full_path"
+    else
+        printf '%s\n' "$content" > "$full_path"
+    fi
+
+    git -C "$MEM_DIR" add "$file"
+    if [ -n "$body" ]; then
+        git -C "$MEM_DIR" commit -q -m "$title" -m "$body"
+    else
+        git -C "$MEM_DIR" commit -q -m "$title"
+    fi
+
+    local hash
+    hash=$(git -C "$MEM_DIR" rev-parse HEAD)
+    echo "OK: $hash|$file"
+}
+
 cmd_init() {
     ensure_init
     echo "OK: Memory repo initialized at $MEM_DIR"
@@ -250,43 +365,6 @@ cmd_read() {
     fi
 }
 
-cmd_commit() {
-    ensure_init
-    local file="" title="" body=""
-
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --file)  file="$2";  shift 2;;
-            --title) title="$2"; shift 2;;
-            --body)  body="$2";  shift 2;;
-            *) echo "Unknown option: $1" >&2; return 1;;
-        esac
-    done
-
-    if [ -z "$file" ] || [ -z "$title" ]; then
-        echo "Usage: mem.sh commit --file <path> --title <title> [--body <body>]" >&2
-        return 1
-    fi
-
-    if [ ! -f "$MEM_DIR/$file" ]; then
-        echo "Error: file not found: $MEM_DIR/$file" >&2
-        return 1
-    fi
-
-    sync_branch >/dev/null
-
-    git -C "$MEM_DIR" add "$file"
-    if [ -n "$body" ]; then
-        git -C "$MEM_DIR" commit -q -m "$title" -m "$body"
-    else
-        git -C "$MEM_DIR" commit -q -m "$title"
-    fi
-
-    local hash
-    hash=$(git -C "$MEM_DIR" rev-parse HEAD)
-    echo "OK: $hash"
-}
-
 cmd_delete() {
     ensure_init
     local commit_hash="${1:-}"
@@ -322,14 +400,14 @@ case "${1:-help}" in
     init)    shift; cmd_init "$@";;
     search)  shift; cmd_search "$@";;
     read)    shift; cmd_read "$@";;
-    commit)  shift; cmd_commit "$@";;
+    write)   shift; cmd_write "$@";;
     delete)  shift; cmd_delete "$@";;
     *)
-        echo "Usage: mem.sh {init|search|read|commit|delete}" >&2
+        echo "Usage: mem.sh {init|search|read|write|delete}" >&2
         echo "  init                                    Initialize .mem repo" >&2
         echo "  search <keywords_csv> [skip] [mode] [--mode M]  Search memories (M: and|or|auto)" >&2
         echo "  read <commit_hash>                      Read memory content" >&2
-        echo "  commit --file F --title T [--body B]    Commit memory entry" >&2
+        echo "  write --title T [--file F] (--content C | --content-file P) [--body B]" >&2
         echo "  delete <commit_hash>                    Delete memory entry" >&2
         ;;
 esac

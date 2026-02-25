@@ -45,18 +45,34 @@ bash <SKILL_DIR>/scripts/mem.sh read <commit_hash>
 
 Outputs the full md file content for the given commit.
 
-### commit — Write Memory
+### write — Create + Commit Memory (Recommended)
 
-Agent creates the md file first, then calls commit:
+Use a single `write` call so file creation and git commit happen in one operation:
 
 ```bash
-# 1. Write md file to .mem/entries/
-#    Filename format: <timestamp>-<slug>.md  e.g. 20260219T151010Z-add-auth-rate-limit.md
-
-# 2. Commit
-bash <SKILL_DIR>/scripts/mem.sh commit \
-  --file "entries/<timestamp>-<slug>.md" \
+bash <SKILL_DIR>/scripts/mem.sh write \
   --title "[auth] add rate-limit for login endpoint" \
+  --content "---
+date: 2026-02-19T15:10:10Z
+status: done
+repo_branch: main
+repo_commit: 9f3e1a2
+mem_branch: main
+related_paths:
+  - src/auth/login.ts
+tags:
+  - auth
+  - security
+---
+
+### Original User Request
+...
+
+### AI Understanding
+- Goal: ...
+
+### Final Outcome
+- Added per-IP rate limiting." \
   --body "Added per-IP rate limiting (10 req/min) to the login endpoint
 using express-rate-limit, with Redis-backed sliding window.
 
@@ -64,6 +80,10 @@ date: 2026-02-19T15:10:10Z
 tags: auth,security
 related-paths: src/auth/login.ts,infra/nginx.conf"
 ```
+
+Notes:
+- `--file` is optional. If omitted, filename auto-generates as `entries/<timestamp>-<slug>.md`.
+- You may use `--content-file <path>` instead of `--content` for large content.
 
 The script automatically syncs the `.mem` branch to the current code repo branch.
 
@@ -158,8 +178,8 @@ If the user explicitly asks to remember, this overrides the "valuable conclusion
 **Write steps**:
 1. Get current UTC timestamp (ISO 8601) and repo info
 2. Determine module name, tags, related paths
-3. Create the entry md file in `.mem/entries/`
-4. Call `commit` interface to commit
+3. Build the entry markdown content (front matter + sections)
+4. Call `write` interface once to create and commit atomically
 
 ### When User Is Unsatisfied — Delete and Rewrite
 

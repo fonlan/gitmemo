@@ -54,6 +54,32 @@ function Sync-Branch {
     return $repoBranch
 }
 
+function Normalize-EntryPath {
+    param([string]$File)
+    if (-not $File) { return $File }
+    if ($File -like "entries/*") { return $File }
+    return "entries/$File"
+}
+
+function Test-SafeEntryPath {
+    param([string]$File)
+    if (-not $File) { return $false }
+    if ([System.IO.Path]::IsPathRooted($File)) { return $false }
+    if ($File -match "(^|[\\/])\.\.([\\/]|$)") { return $false }
+    if ($File -match ":") { return $false }
+    return $true
+}
+
+function Convert-ToSlug {
+    param([string]$Text)
+    $slug = $Text.ToLowerInvariant()
+    $slug = $slug -replace "[^a-z0-9]+", "-"
+    $slug = $slug -replace "^-+", ""
+    $slug = $slug -replace "-+$", ""
+    if (-not $slug) { $slug = "memory-entry" }
+    return $slug
+}
+
 function Invoke-Init {
     Ensure-Init
     Write-Output "OK: Memory repo initialized at $script:MemDir"
@@ -226,32 +252,96 @@ function Invoke-Read {
     }
 }
 
-function Invoke-Commit {
+function Invoke-Write {
     param([string[]]$Params)
     Ensure-Init
 
-    $file = ""; $title = ""; $body = ""
+    $file = ""
+    $title = ""
+    $body = ""
+    $content = ""
+    $contentFile = ""
+
     for ($i = 0; $i -lt $Params.Count; $i++) {
         switch ($Params[$i]) {
-            "--file"  { $file  = $Params[++$i] }
-            "--title" { $title = $Params[++$i] }
-            "--body"  { $body  = $Params[++$i] }
-            default   { Write-Error "Unknown option: $($Params[$i])"; return }
+            "--file" {
+                if ($i + 1 -ge $Params.Count) { Write-Error "Error: --file requires a value"; return }
+                $file = $Params[++$i]
+            }
+            "--title" {
+                if ($i + 1 -ge $Params.Count) { Write-Error "Error: --title requires a value"; return }
+                $title = $Params[++$i]
+            }
+            "--body" {
+                if ($i + 1 -ge $Params.Count) { Write-Error "Error: --body requires a value"; return }
+                $body = $Params[++$i]
+            }
+            "--content" {
+                if ($i + 1 -ge $Params.Count) { Write-Error "Error: --content requires a value"; return }
+                $content = $Params[++$i]
+            }
+            "--content-file" {
+                if ($i + 1 -ge $Params.Count) { Write-Error "Error: --content-file requires a value"; return }
+                $contentFile = $Params[++$i]
+            }
+            default {
+                Write-Error "Unknown option: $($Params[$i])"
+                return
+            }
         }
     }
 
-    if (-not $file -or -not $title) {
-        Write-Error "Usage: mem.ps1 commit --file <path> --title <title> [--body <body>]"
+    if (-not $title) {
+        Write-Error "Usage: mem.ps1 write --title <title> [--file <path>] (--content <markdown> | --content-file <path>) [--body <body>]"
         return
     }
 
-    $fullPath = Join-Path $script:MemDir $file
-    if (-not (Test-Path $fullPath)) {
-        Write-Error "Error: file not found: $fullPath"
+    if ($content -and $contentFile) {
+        Write-Error "Error: use only one of --content or --content-file"
         return
+    }
+
+    if (-not $content -and -not $contentFile) {
+        Write-Error "Error: missing content. Use --content or --content-file."
+        return
+    }
+
+    if ($contentFile -and -not (Test-Path -LiteralPath $contentFile)) {
+        Write-Error "Error: content file not found: $contentFile"
+        return
+    }
+
+    if (-not $file) {
+        $timestamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
+        $slug = Convert-ToSlug -Text $title
+        $file = "entries/$timestamp-$slug.md"
+    } else {
+        $file = Normalize-EntryPath -File $file
+    }
+
+    if (-not (Test-SafeEntryPath -File $file)) {
+        Write-Error "Error: invalid file path: $file"
+        return
+    }
+
+    if (-not $file.EndsWith(".md", [StringComparison]::OrdinalIgnoreCase)) {
+        $file = "$file.md"
     }
 
     Sync-Branch | Out-Null
+
+    $fullPath = Join-Path $script:MemDir $file
+    $targetDir = Split-Path -Parent $fullPath
+    if ($targetDir) {
+        New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+    }
+
+    if ($contentFile) {
+        Copy-Item -LiteralPath $contentFile -Destination $fullPath -Force
+    } else {
+        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllText($fullPath, $content + "`n", $utf8NoBom)
+    }
 
     git -C $script:MemDir add $file
     if ($body) {
@@ -261,7 +351,7 @@ function Invoke-Commit {
     }
 
     $hash = git -C $script:MemDir rev-parse HEAD
-    Write-Output "OK: $hash"
+    Write-Output "OK: $hash|$file"
 }
 
 function Invoke-Delete {
@@ -332,14 +422,14 @@ switch ($Command) {
         Invoke-Search -Keywords $kw -Skip $sk -Mode $mode
     }
     "read"   { Invoke-Read -CommitHash ($Args | Select-Object -First 1) }
-    "commit" { Invoke-Commit -Params $Args }
+    "write"  { Invoke-Write -Params $Args }
     "delete" { Invoke-Delete -CommitHash ($Args | Select-Object -First 1) }
     default  {
-        Write-Host "Usage: mem.ps1 {init|search|read|commit|delete}"
+        Write-Host "Usage: mem.ps1 {init|search|read|write|delete}"
         Write-Host "  init                                    Initialize .mem repo"
         Write-Host "  search <keywords_csv> [skip] [mode] [--mode M]  Search memories (M: and|or|auto)"
         Write-Host "  read <commit_hash>                      Read memory content"
-        Write-Host "  commit --file F --title T [--body B]    Commit memory entry"
+        Write-Host "  write --title T [--file F] (--content C | --content-file P) [--body B]"
         Write-Host "  delete <commit_hash>                    Delete memory entry"
     }
 }
