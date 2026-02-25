@@ -4,6 +4,18 @@
 
 A fully automated skill that gives coding agents long-term memory through a **local** `.mem` Git repository. Git is the only dependency, and users do not need to run memory commands manually.
 
+## Key Characteristics
+
+- Extremely simple to use: once installed, no manual memory commands are needed in day-to-day tasks
+- Fully automated: the agent runs `init`, `search`, `read`, `write`, and `delete` as part of normal task flow
+- Local-only and offline-capable: memory is stored in a local `.mem` Git repository, with no cloud dependency
+- Git-only dependency: no runtime dependency beyond Git
+- Token-efficient: reuses prior conclusions through search instead of re-injecting repeated context
+- Prevents context bloat: search-first workflow with a max read scope of 5 relevant memories
+- Auditable: every memory action is visible in Git history
+- Traceable: each memory can be traced and replayed from commit history
+- Easy to manage: branch-aligned, delete-and-rewrite capable, and review-friendly text artifacts
+
 ## Overview
 
 - Stores completed task outcomes as markdown entries under `.mem/entries/`
@@ -50,7 +62,6 @@ Copy it as-is, including the marker lines `# >>> gitmemo:agents-template:start` 
 | Claude Code | `CLAUDE.md` | Claude Code loads project memory from this file. |
 | Codex | `AGENTS.md` | Codex reads repo/user `AGENTS.md` instructions. |
 | GitHub Copilot | `.github/copilot-instructions.md` | You can also add scoped rules under `.github/instructions/*.instructions.md`. Enable `chat.useAgentsMdFile` in VS Code (open `vscode://settings/chat.useAgentsMdFile`) so Copilot can read `AGENTS.md`. |
-| Trae | `.trae/rules/project_rules.md` | Create via Trae "Rules > Project Rules" and paste the same workflow instructions. |
 | Other agent tools | `AGENTS.md` (recommended) | If the tool supports `AGENTS.md`, reuse the same template directly. |
 
 ### 2. Fully Automated Install (Agent-Executed)
@@ -61,16 +72,32 @@ Use `INSTALL.md` as the execution contract for coding agents:
 
 Two automation modes are supported:
 
-- Global install to the home skill directory:
-  `~/.agents/skills/gitmemo` (Linux/macOS) or `%USERPROFILE%\\.agents\\skills\\gitmemo` (Windows)
+- Global install (for exact paths and tool-specific global rules, follow `INSTALL.md`)
 - Project install to `<project_root>/.agents/skills/gitmemo`
 
 Example one-sentence prompts:
-- Install to global
+- Install to global (auto-detect, best-effort)
 ```text
-Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode, then report installed path, commit, and a manual next step to update your tool instruction file with agents-template.md.
+Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode; auto-detect the current coding agent (codex/claude code/gemini cli/copilot) and integrate agents-template.md using that tool's global rules defined in INSTALL.md; if detection is not reliable, explicitly ask for agent type; finally report installed path, commit, agent type, and instruction integration result.
 ```
 
+- Install to global (explicit agent, recommended)
+  - Codex
+  ```text
+  Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode, then integrate agents-template.md using Codex global rules; finally report installed path, commit, and instruction integration result.
+  ```
+  - Claude Code
+  ```text
+  Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode, then integrate agents-template.md using Claude Code global rules; finally report installed path, commit, and instruction integration result.
+  ```
+  - Gemini CLI
+  ```text
+  Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode, then integrate agents-template.md using Gemini CLI global rules; finally report installed path, commit, and instruction integration result.
+  ```
+  - GitHub Copilot
+  ```text
+  Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode, then integrate agents-template.md using GitHub Copilot global rules; finally report installed path, commit, and instruction integration result.
+  ```
 - Install to current project
 ```text
 Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in project mode for the current repository, then report installed path, commit, and instruction integration sync result.

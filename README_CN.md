@@ -2,6 +2,18 @@
 
 这是一个为编码代理提供长期记忆能力的全自动 Skill，基于**本地** `.mem` Git 仓库存储任务历史，且仅依赖 Git；用户无需手动执行记忆相关命令。
 
+## 项目特点
+
+- 使用极其简单：安装后即可用，日常任务无需手动执行记忆命令
+- 全自动：代理会在任务流程中自动执行 `init`、`search`、`read`、`write`、`delete`
+- 纯本地、离线可用：记忆保存在本地 `.mem` Git 仓库，不依赖云端服务
+- 除 Git 外无依赖：运行只要求 Git 环境
+- 省 Token：通过检索并复用历史结论，减少重复上下文注入
+- 不会导致上下文爆炸：先搜索再读取，且相关记忆读取上限为 5 条
+- 可审计：所有记忆操作都有 Git 历史可查
+- 可追溯：每条记忆都可按提交记录回放来源与变更
+- 易管理：支持按分支对齐、删除重写、文本化 review
+
 ## 功能概览
 
 - 将已完成任务沉淀为 `.mem/entries/` 下的 Markdown 记忆条目
@@ -41,14 +53,13 @@ git submodule add https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
 ```
 
 然后把 `./.agents/skills/gitmemo/agents-template.md` 内容复制到对应工具的项目级指令文件：
-请原样复制（包含 `# >>> gitmemo:agents-template:start` 和 `# <<< gitmemo:agents-template:end` 标记行），这样后续 project 模式自动安装才能安全同步管理块并避免重复。
+请原样复制（包含 `# >>> gitmemo:agents-template:start` 和 `# <<< gitmemo:agents-template:end` 标记行），这样就算后续用 project 模式自动安装才能安全同步管理块也能避免重复。
 
 | AI 工具 | 项目指令文件 | 说明 |
 | --- | --- | --- |
 | Claude Code | `CLAUDE.md` | Claude Code 会从该文件读取项目规则。 |
 | Codex | `AGENTS.md` | Codex 会读取仓库/用户级 `AGENTS.md` 指令。 |
 | GitHub Copilot | `.github/copilot-instructions.md` | 也可在 `.github/instructions/*.instructions.md` 中写更细粒度规则。需在 VS Code 启用 `chat.useAgentsMdFile`（可打开 `vscode://settings/chat.useAgentsMdFile`）以便 Copilot 正确读取 `AGENTS.md`。 |
-| Trae | `.trae/rules/project_rules.md` | 可在 Trae 的 “Rules > Project Rules” 中创建并粘贴同样指令。 |
 | 其他代理工具 | `AGENTS.md`（推荐） | 如果工具支持 `AGENTS.md`，可直接复用同一模板。 |
 
 ### 2. 全自动安装（代理执行）
@@ -59,16 +70,32 @@ git submodule add https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
 
 支持两种自动化模式：
 
-- 全局安装到用户主目录下 skill 路径：
-  Linux/macOS 使用 `~/.agents/skills/gitmemo`，Windows 使用 `%USERPROFILE%\\.agents\\skills\\gitmemo`
+- 全局安装（具体路径与各工具 global 规则以 `INSTALL.md` 为准）
 - 当前项目安装到 `<project_root>/.agents/skills/gitmemo`
 
 可直接给代理的一句话示例：
-- 安装到全局
+- 安装到全局（自动识别，best-effort）
 ```text
-根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 global 模式安装 gitmemo，并汇报安装路径、commit，以及提醒用户手动把 agents-template.md 写入工具指令文件。
+根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 global 模式安装 gitmemo；自动识别当前 coding agent（codex/claude code/gemini cli/copilot），并按 INSTALL.md 中该工具的 global 规则集成 agents-template.md；若无法可靠识别则明确要求用户指定 agent 类型；最后汇报安装路径、commit、agent 类型和指令集成结果。
 ```
 
+- 安装到全局（按工具显式指定，推荐）
+  - Codex
+  ```text
+  根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 global 模式安装 gitmemo，并按 Codex 的 global 规则集成 agents-template.md；最后汇报安装路径、commit 和指令集成结果。
+  ```
+  - Claude Code
+  ```text
+  根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 global 模式安装 gitmemo，并按 Claude Code 的 global 规则集成 agents-template.md；最后汇报安装路径、commit 和指令集成结果。
+  ```
+  - Gemini CLI
+  ```text
+  根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 global 模式安装 gitmemo，并按 Gemini CLI 的 global 规则集成 agents-template.md；最后汇报安装路径、commit 和指令集成结果。
+  ```
+  - GitHub Copilot
+  ```text
+  根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 global 模式安装 gitmemo，并按 GitHub Copilot 的 global 规则集成 agents-template.md；最后汇报安装路径、commit 和指令集成结果。
+  ```
 - 安装到当前项目
 ```text
 根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 project 模式安装当前仓库的 gitmemo，并汇报安装路径、commit 和指令集成同步结果。

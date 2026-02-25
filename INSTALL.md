@@ -23,8 +23,9 @@ Repository: `https://github.com/fonlan/gitmemo.git`
 - `scripts/mem.sh`
 5. Handle instruction-file integration by mode:
 - `project` mode must upsert a managed block in `<project_root>/AGENTS.md` using marker lines, replacing the old managed block on upgrades.
-- `global` mode must not auto-update or validate a shared `AGENTS.md` path.
-- `global` mode must return a manual next step for the user to update their tool instruction file.
+- `global` mode defaults to manual-required (do not assume a shared `AGENTS.md` path).
+- If the user explicitly requests a target tool (or asks for auto-detect and detection is reliable), `global` mode should upsert `agents-template.md` into that tool's global instruction source.
+- If `global` auto-detect is requested but the tool cannot be resolved reliably, return a clear fallback asking for explicit tool type.
 
 ## Standard Procedure
 
@@ -39,11 +40,13 @@ Repository: `https://github.com/fonlan/gitmemo.git`
 - start marker: `# >>> gitmemo:agents-template:start`
 - end marker: `# <<< gitmemo:agents-template:end`
 6. Validate project sync result (exactly one marker pair and marker block equals current `agents-template.md`).
-7. For `global` mode, skip AGENTS validation and output a manual instruction-file update reminder.
+7. For `global` mode:
+- If tool target is explicit/reliably detected, sync that tool's global instruction source with marker-block upsert semantics and report sync target.
+- Otherwise, skip global instruction-file sync and output a manual instruction-file update reminder.
 8. Return:
 - final install path
 - current commit short hash
-- instruction integration status (`manual-required` for global, `synced` for project)
+- instruction integration status (`manual-required` or `synced`)
 
 ## Mode: Global Install
 
@@ -51,7 +54,23 @@ Target path:
 
 - Linux/macOS: `~/.agents/skills/gitmemo`
 - Windows: `%USERPROFILE%\\.agents\\skills\\gitmemo`
-- Instruction integration: manual update required in global mode
+- Instruction integration: manual-required by default; sync is allowed when a specific tool target is requested.
+
+Suggested global instruction targets when explicit tool is requested:
+
+- Codex:
+  - Linux/macOS: `~/.codex/AGENTS.md` (or `${CODEX_HOME}/AGENTS.md` if `CODEX_HOME` is set)
+  - Windows: `%USERPROFILE%\\.codex\\AGENTS.md` (or `%CODEX_HOME%\\AGENTS.md` if `CODEX_HOME` is set)
+- Claude Code:
+  - Linux/macOS: `~/.claude/CLAUDE.md`
+  - Windows: `%USERPROFILE%\\.claude\\CLAUDE.md`
+- Gemini CLI:
+  - Linux/macOS: `~/.gemini/GEMINI.md`
+  - Windows: `%USERPROFILE%\\.gemini\\GEMINI.md`
+- GitHub Copilot (VS Code prompts):
+  - Linux: `~/.config/Code/User/prompts/gitmemo.instructions.md`
+  - macOS: `~/Library/Application Support/Code/User/prompts/gitmemo.instructions.md`
+  - Windows: `%AppData%\\Code\\User\\prompts\\gitmemo.instructions.md`
 
 Bash example:
 
@@ -82,7 +101,7 @@ for f in SKILL.md agents-template.md scripts/mem.ps1 scripts/mem.sh; do
 done
 
 rev="$(git -C "$target" rev-parse --short HEAD)"
-manual_note="Manual step required: add $target/agents-template.md to your tool instruction file (for example AGENTS.md, CLAUDE.md, or .github/copilot-instructions.md)."
+manual_note="Manual step required: add $target/agents-template.md to your tool instruction file (for example AGENTS.md, CLAUDE.md, or %AppData%\\Code\\User\\prompts\\gitmemo.instructions.md)."
 echo "Installed: $target @ $rev | Instruction integration: manual-required | $manual_note"
 ```
 
@@ -115,7 +134,7 @@ $missing = $required | Where-Object { -not (Test-Path (Join-Path $target $_)) }
 if ($missing.Count -gt 0) { throw "Missing files: $($missing -join ', ')" }
 
 $rev = git -C $target rev-parse --short HEAD
-$manualNote = "Manual step required: add $target/agents-template.md to your tool instruction file (for example AGENTS.md, CLAUDE.md, or .github/copilot-instructions.md)."
+$manualNote = "Manual step required: add $target/agents-template.md to your tool instruction file (for example AGENTS.md, CLAUDE.md, or %AppData%\\Code\\User\\prompts\\gitmemo.instructions.md)."
 Write-Output "Installed: $target @ $rev | Instruction integration: manual-required | $manualNote"
 ```
 
@@ -294,7 +313,7 @@ Write-Output "Installed: $target @ $rev | Instruction integration: synced ($sync
 ## One-Sentence Prompts (For Users)
 
 - Global install:
-`Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode, do not validate or update a shared AGENTS.md path, and report installed path, commit, and a manual next step for instruction-file update using agents-template.md.`
+`Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode using OS-specific user home resolution (~/.agents/skills/gitmemo on Linux/macOS, %USERPROFILE%\\.agents\\skills\\gitmemo on Windows); then auto-detect the current coding agent and upsert agents-template.md into that tool's global instruction source, or ask for explicit tool type if detection is not reliable; report path, commit, integration status, and instruction target.`
 
 - Project install:
 `Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo to .agents/skills/gitmemo in the current project in project mode, sync AGENTS.md using the managed marker block, and report path, commit, and instruction integration sync result.`
