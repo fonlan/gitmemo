@@ -1,6 +1,6 @@
 ---
 name: gitmemo
-description: Long-term memory for AI agents via local .mem git repo. Interfaces: search, read, write, delete. MUST be used when starting tasks (search past), after completing tasks (write), before/after context compression (write then re-read), or when user mentions memory/.mem.
+description: "Long-term memory for AI agents via local .mem git repo. Interfaces: search, read, write, delete. MUST be used when starting tasks (search past), after completing tasks (write), before/after context compression (write then re-read), or when user mentions memory/.mem."
 ---
 
 # GitMemo — AI Agent Long-Term Memory
