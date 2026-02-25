@@ -25,6 +25,7 @@ Repository: `https://github.com/fonlan/gitmemo.git`
 - `project` mode must upsert a managed block in `<project_root>/AGENTS.md` using marker lines, replacing the old managed block on upgrades.
 - `global` mode defaults to manual-required (do not assume a shared `AGENTS.md` path).
 - If the user explicitly requests a target tool (or asks for auto-detect and detection is reliable), `global` mode should upsert `agents-template.md` into that tool's global instruction source.
+- If the resolved global target tool is Cursor, write `agents-template.md` into Cursor `.mdc` rule file with required YAML frontmatter and create Cursor skill symlink to the installed gitmemo path.
 - If `global` auto-detect is requested but the tool cannot be resolved reliably, return a clear fallback asking for explicit tool type.
 
 ## Standard Procedure
@@ -71,6 +72,47 @@ Suggested global instruction targets when explicit tool is requested:
   - Linux: `~/.config/Code/User/prompts/gitmemo.instructions.md`
   - macOS: `~/Library/Application Support/Code/User/prompts/gitmemo.instructions.md`
   - Windows: `%AppData%\\Code\\User\\prompts\\gitmemo.instructions.md`
+- Cursor (global rules):
+  - Linux/macOS: `~/.cursor/rules/gitmemo.mdc`
+  - Windows: `%USERPROFILE%\\.cursor\\rules\\gitmemo.mdc`
+  - Note: `.mdc` files require YAML frontmatter before template content:
+    ```text
+    ---
+    description: GitMemo memory workflow
+    alwaysApply: true
+    ---
+    ```
+  - Agent Skill symlink (required for Cursor to list `gitmemo` in Agent Skills UI):
+    - Linux/macOS: `mkdir -p "$HOME/.cursor/skills" && ln -sfn "$HOME/.agents/skills/gitmemo" "$HOME/.cursor/skills/gitmemo"`
+    - Windows: `New-Item -ItemType SymbolicLink -Path "$HOME\\.cursor\\skills\\gitmemo" -Target "$HOME\\.agents\\skills\\gitmemo" -Force`
+    - Background: Cursor scans `~/.cursor/skills/*/SKILL.md` for Agent Skills, while gitmemo is stored in `~/.agents/skills/`.
+
+Cursor-specific global sync example (when explicit tool is Cursor):
+
+```bash
+cursor_rule="$HOME/.cursor/rules/gitmemo.mdc"
+mkdir -p "$(dirname "$cursor_rule")"
+
+cursor_frontmatter=$'---\ndescription: GitMemo memory workflow\nalwaysApply: true\n---\n'
+template_content="$(cat "$target/agents-template.md")"
+printf "%s%s\n" "$cursor_frontmatter" "$template_content" > "$cursor_rule"
+
+mkdir -p "$HOME/.cursor/skills"
+ln -sfn "$target" "$HOME/.cursor/skills/gitmemo"
+```
+
+```powershell
+$cursorRule = Join-Path $HOME ".cursor/rules/gitmemo.mdc"
+New-Item -ItemType Directory -Force -Path (Split-Path $cursorRule -Parent) | Out-Null
+
+$cursorFrontmatter = "---`ndescription: GitMemo memory workflow`nalwaysApply: true`n---`n"
+$templateContent = Get-Content (Join-Path $target "agents-template.md") -Raw
+Set-Content -Path $cursorRule -Value ($cursorFrontmatter + $templateContent) -NoNewline
+
+$cursorSkillsDir = Join-Path $HOME ".cursor/skills"
+New-Item -ItemType Directory -Force -Path $cursorSkillsDir | Out-Null
+New-Item -ItemType SymbolicLink -Path (Join-Path $cursorSkillsDir "gitmemo") -Target $target -Force | Out-Null
+```
 
 Bash example:
 
@@ -101,7 +143,7 @@ for f in SKILL.md agents-template.md scripts/mem.ps1 scripts/mem.sh; do
 done
 
 rev="$(git -C "$target" rev-parse --short HEAD)"
-manual_note="Manual step required: add $target/agents-template.md to your tool instruction file (for example AGENTS.md, CLAUDE.md, or %AppData%\\Code\\User\\prompts\\gitmemo.instructions.md)."
+manual_note="Manual step required: add $target/agents-template.md to your tool instruction file (for example AGENTS.md, CLAUDE.md, %AppData%\\Code\\User\\prompts\\gitmemo.instructions.md, or ~/.cursor/rules/gitmemo.mdc with required .mdc frontmatter)."
 echo "Installed: $target @ $rev | Instruction integration: manual-required | $manual_note"
 ```
 
@@ -134,7 +176,7 @@ $missing = $required | Where-Object { -not (Test-Path (Join-Path $target $_)) }
 if ($missing.Count -gt 0) { throw "Missing files: $($missing -join ', ')" }
 
 $rev = git -C $target rev-parse --short HEAD
-$manualNote = "Manual step required: add $target/agents-template.md to your tool instruction file (for example AGENTS.md, CLAUDE.md, or %AppData%\\Code\\User\\prompts\\gitmemo.instructions.md)."
+$manualNote = "Manual step required: add $target/agents-template.md to your tool instruction file (for example AGENTS.md, CLAUDE.md, %AppData%\\Code\\User\\prompts\\gitmemo.instructions.md, or ~/.cursor/rules/gitmemo.mdc with required .mdc frontmatter)."
 Write-Output "Installed: $target @ $rev | Instruction integration: manual-required | $manualNote"
 ```
 
@@ -313,7 +355,7 @@ Write-Output "Installed: $target @ $rev | Instruction integration: synced ($sync
 ## One-Sentence Prompts (For Users)
 
 - Global install:
-`Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode using OS-specific user home resolution (~/.agents/skills/gitmemo on Linux/macOS, %USERPROFILE%\\.agents\\skills\\gitmemo on Windows); then auto-detect the current coding agent and upsert agents-template.md into that tool's global instruction source, or ask for explicit tool type if detection is not reliable; report path, commit, integration status, and instruction target.`
+`Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode using OS-specific user home resolution (~/.agents/skills/gitmemo on Linux/macOS, %USERPROFILE%\\.agents\\skills\\gitmemo on Windows); then auto-detect the current coding agent (codex/claude code/gemini cli/copilot/cursor) and upsert agents-template.md into that tool's global instruction source, or ask for explicit tool type if detection is not reliable; if tool is Cursor, write ~/.cursor/rules/gitmemo.mdc with required YAML frontmatter and create ~/.cursor/skills/gitmemo symlink to ~/.agents/skills/gitmemo; report path, commit, integration status, and instruction target.`
 
 - Project install:
 `Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo to .agents/skills/gitmemo in the current project in project mode, sync AGENTS.md using the managed marker block, and report path, commit, and instruction integration sync result.`

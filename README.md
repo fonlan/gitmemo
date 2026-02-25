@@ -71,7 +71,7 @@ Two automation modes are supported:
 Example one-sentence prompts:
 - Install to global (auto-detect, best-effort)
 ```text
-Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode; auto-detect the current coding agent (codex/claude code/gemini cli/copilot) and integrate agents-template.md using that tool's global rules defined in INSTALL.md; if detection is not reliable, explicitly ask for agent type; finally report installed path, commit, agent type, and instruction integration result.
+Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode; auto-detect the current coding agent (codex/claude code/gemini cli/copilot/cursor) and integrate agents-template.md using that tool's global rules defined in INSTALL.md; if detection is not reliable, explicitly ask for agent type; if tool is Cursor, write ~/.cursor/rules/gitmemo.mdc with required YAML frontmatter and create ~/.cursor/skills/gitmemo symlink to ~/.agents/skills/gitmemo; finally report installed path, commit, agent type, and instruction integration result.
 ```
 
 - Install to global (explicit agent, recommended)
@@ -90,6 +90,10 @@ Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmem
   - GitHub Copilot
   ```text
   Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode, then integrate agents-template.md using GitHub Copilot global rules; finally report installed path, commit, and instruction integration result.
+  ```
+  - Cursor
+  ```text
+  Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode, then integrate agents-template.md using Cursor global rules (write ~/.cursor/rules/gitmemo.mdc with required YAML frontmatter, and create ~/.cursor/skills/gitmemo symlink to ~/.agents/skills/gitmemo); finally report installed path, commit, and instruction integration result.
   ```
 - Install to current project
 ```text
