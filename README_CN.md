@@ -55,13 +55,6 @@ git submodule add https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
 然后把 `./.agents/skills/gitmemo/agents-template.md` 内容复制到对应工具的项目级指令文件：
 请原样复制（包含 `# >>> gitmemo:agents-template:start` 和 `# <<< gitmemo:agents-template:end` 标记行），这样就算后续用 project 模式自动安装才能安全同步管理块也能避免重复。
 
-| AI 工具 | 项目指令文件 | 说明 |
-| --- | --- | --- |
-| Claude Code | `CLAUDE.md` | Claude Code 会从该文件读取项目规则。 |
-| Codex | `AGENTS.md` | Codex 会读取仓库/用户级 `AGENTS.md` 指令。 |
-| GitHub Copilot | `.github/copilot-instructions.md` | 也可在 `.github/instructions/*.instructions.md` 中写更细粒度规则。需在 VS Code 启用 `chat.useAgentsMdFile`（可打开 `vscode://settings/chat.useAgentsMdFile`）以便 Copilot 正确读取 `AGENTS.md`。 |
-| 其他代理工具 | `AGENTS.md`（推荐） | 如果工具支持 `AGENTS.md`，可直接复用同一模板。 |
-
 ### 2. 全自动安装（代理执行）
 
 让 coding agent 严格按 `INSTALL.md` 流程执行安装：

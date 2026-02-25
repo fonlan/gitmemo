@@ -57,13 +57,6 @@ git submodule add https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
 Then copy `./.agents/skills/gitmemo/agents-template.md` into your tool's project instruction file:
 Copy it as-is, including the marker lines `# >>> gitmemo:agents-template:start` and `# <<< gitmemo:agents-template:end`, so future project-mode auto installs can sync the managed block safely.
 
-| AI tool | Project instruction file | Notes |
-| --- | --- | --- |
-| Claude Code | `CLAUDE.md` | Claude Code loads project memory from this file. |
-| Codex | `AGENTS.md` | Codex reads repo/user `AGENTS.md` instructions. |
-| GitHub Copilot | `.github/copilot-instructions.md` | You can also add scoped rules under `.github/instructions/*.instructions.md`. Enable `chat.useAgentsMdFile` in VS Code (open `vscode://settings/chat.useAgentsMdFile`) so Copilot can read `AGENTS.md`. |
-| Other agent tools | `AGENTS.md` (recommended) | If the tool supports `AGENTS.md`, reuse the same template directly. |
-
 ### 2. Fully Automated Install (Agent-Executed)
 
 Use `INSTALL.md` as the execution contract for coding agents:
