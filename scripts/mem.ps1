@@ -9,7 +9,15 @@ param(
 $ErrorActionPreference = "Stop"
 
 function Find-RepoRoot {
-    $root = git rev-parse --show-toplevel 2>$null
+    $root = $null
+    try {
+        $resolved = & git rev-parse --show-toplevel 2>$null
+        if ($LASTEXITCODE -eq 0 -and $resolved) {
+            $root = ($resolved | Select-Object -First 1).Trim()
+        }
+    } catch {
+        $root = $null
+    }
     if ($root) { return $root }
     return (Get-Location).Path
 }
@@ -33,7 +41,15 @@ function Ensure-Init {
 
 function Get-SafeBranch {
     param([string]$Dir)
-    $branch = git -C $Dir rev-parse --abbrev-ref HEAD 2>$null
+    $branch = $null
+    try {
+        $resolved = & git -C $Dir rev-parse --abbrev-ref HEAD 2>$null
+        if ($LASTEXITCODE -eq 0 -and $resolved) {
+            $branch = ($resolved | Select-Object -First 1).Trim()
+        }
+    } catch {
+        $branch = $null
+    }
     if (-not $branch -or $branch -eq "HEAD") { return "main" }
     return $branch
 }
