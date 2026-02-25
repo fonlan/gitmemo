@@ -1,101 +1,49 @@
 ---
 name: gitmemo
-description: Provide long-term memory for coding AI agents via local git storage. Creates a .mem repository in the project to store task history with search, read, write, and delete interfaces. Use when starting new tasks (to search relevant past memories), after completing tasks (to write memories), before compressing context, or when the user mentions memory, past tasks, conversation history, or .mem.
+description: Long-term memory for AI agents via local .mem git repo. Interfaces: search, read, write, delete. Use when starting tasks (search past), MUST be used after completing tasks (write), before/after context compression (write then re-read), or when user mentions memory/.mem.
 ---
 
-# GitMemo — Long-Term Memory for AI Coding Agents
+# GitMemo — AI Agent Long-Term Memory
 
-Stores conversation history and task outcomes in a local `.mem` git repository, enabling AI agents to recall past work.
+Scripts: `scripts/mem.sh` (Linux/macOS) | `scripts/mem.ps1` (Windows). Run from **project root**; auto-locates/creates `.mem` repo.
 
-## Script Interfaces
+## Commands
 
-Choose the script for your OS (paths relative to this skill directory):
-- **Linux/macOS**: `scripts/mem.sh`
-- **Windows**: `scripts/mem.ps1`
-
-All commands run from the **project root**. The script auto-locates or creates the `.mem` repo.
-
-### init — Initialize
-
+### init
 ```bash
 bash <SKILL_DIR>/scripts/mem.sh init
 ```
 
-### search — Search Memories
-
+### search
 ```bash
-bash <SKILL_DIR>/scripts/mem.sh search <keywords_csv> [skip] [mode]
-# or
-bash <SKILL_DIR>/scripts/mem.sh search <keywords_csv> [skip] --mode <and|or|auto>
+bash <SKILL_DIR>/scripts/mem.sh search <keywords_csv> [skip] [--mode <and|or|auto>]
 ```
+- `keywords_csv`: comma-separated. `skip`: pagination offset (default 0). Up to 100 results/call, format: `hash|title|date`
+- `mode`(default `auto`): `and`=strict, `or`=broad, `auto`=try `and` then fallback `or`
 
-- `keywords_csv`: comma-separated keywords
-- `skip`: skip first N results (default 0) for pagination
-- `mode`: `and`, `or`, or `auto` (default `auto`)
-  - `and`: add `--all-match` for lower noise
-  - `or`: keep broad recall
-  - `auto`: try `and` first, fallback to `or` if results are too few
-- Returns up to 100 results per call, format: `hash|title|date`
-
-### read — Read Memory
-
+### read
 ```bash
 bash <SKILL_DIR>/scripts/mem.sh read <commit_hash>
 ```
 
-Outputs the full md file content for the given commit.
+### write
 
-### write — Create + Commit Memory (Recommended)
-
-Use a single `write` call so file creation and git commit happen in one operation:
-
+Single atomic call (create file + git commit):
 ```bash
 bash <SKILL_DIR>/scripts/mem.sh write \
-  --title "[auth] add rate-limit for login endpoint" \
-  --content "---
-date: 2026-02-19T15:10:10Z
-status: done
-repo_branch: main
-repo_commit: 9f3e1a2
-mem_branch: main
-related_paths:
-  - src/auth/login.ts
-tags:
-  - auth
-  - security
----
-
-### Original User Request
-...
-
-### AI Understanding
-- Goal: ...
-
-### Final Outcome
-- Added per-IP rate limiting." \
-  --body "Added per-IP rate limiting (10 req/min) to the login endpoint
-using express-rate-limit, with Redis-backed sliding window.
-
-date: 2026-02-19T15:10:10Z
-tags: auth,security
-related-paths: src/auth/login.ts,infra/nginx.conf"
+  --title "[module] action + object" \
+  --content "<entry_markdown>" \
+  --body "<commit_body>"
 ```
+- `--file` optional (defaults to `entries/<timestamp>-<slug>.md`); `--content-file <path>` replaces `--content` for large content
+- Auto-syncs `.mem` branch to current repo branch
 
-Notes:
-- `--file` is optional. If omitted, filename auto-generates as `entries/<timestamp>-<slug>.md`.
-- You may use `--content-file <path>` instead of `--content` for large content.
-
-The script automatically syncs the `.mem` branch to the current code repo branch.
-
-### delete — Delete Memory
-
+### delete
 ```bash
 bash <SKILL_DIR>/scripts/mem.sh delete <commit_hash>
 ```
 
-## Entry File Format
-
-Each entry is an md file with YAML front matter:
+## Entry Format (--content)
 
 ```markdown
 ---
@@ -104,85 +52,32 @@ status: done
 repo_branch: main
 repo_commit: 9f3e1a2
 mem_branch: main
-related_paths:
-  - src/auth/login.ts
-  - infra/nginx/nginx.conf
-tags:
-  - auth
-  - security
-  - rate-limit
+related_paths: [src/auth/login.ts]
+tags: [auth, security]
 ---
-
 ### Original User Request
-(paste verbatim)
-
+(verbatim)
 ### AI Understanding
-- Goal:
-- Constraints:
-- Out of scope:
-
+- Goal: / Constraints: / Out of scope:
 ### Final Outcome
-- Output 1:
-- Output 2:
-- If code changes: describe change points / API changes
+- Changes/outputs summary
 ```
 
-## Commit Message Format
+## Commit Message (--title + --body)
 
-**Title**: `[module] action + object + purpose`
-- e.g. `[auth] add rate-limit for login endpoint`
-- e.g. `[build] fix pnpm lockfile mismatch on CI`
+**--title**: `[module] action + object` (e.g. `[auth] add rate-limit for login`)
 
-**Body** (AI-generated summary + structured metadata, metadata must stay consistent with md front matter):
+**--body**: 1-3 sentence summary + metadata (must match front matter):
 ```
-Added per-IP rate limiting (10 req/min) to the login endpoint using
-express-rate-limit, with Redis-backed sliding window and custom 429 response.
+Added per-IP rate limiting (10 req/min) to login endpoint.
 
 date: 2026-02-19T15:10:10Z
 tags: auth,security
-related-paths: src/auth/login.ts,infra/nginx.conf
+related-paths: src/auth/login.ts
 ```
 
-The first paragraph is a concise summary of the task (what was done and why). Keep it to 1-3 sentences.
+## Workflow
 
-## Core Workflow
-
-### On Receiving a User Request — Search Memories
-
-1. Generate 3-5 relevant keywords from the user request
-2. Call `search` interface
-3. Evaluate whether returned results are relevant
-4. If relevant results are more than 5, select only the 5 most likely memories to read (prioritize keyword overlap, title specificity, and recency)
-5. If not relevant, paginate with `skip=100` for the next batch (up to 3 batches: skip=0, 100, 200)
-6. If relevant memories found, call `read` only for the selected memories to get full md content
-7. Decide whether the stored conclusion can solve the current problem:
-   - **Yes** → return the stored conclusion directly
-   - **Partially** → use the memory as reference context and generate a new solution
-
-### After Completing a User Request — Write Memory
-
-**Write conditions** (all must be met):
-- Task is complete (not awaiting user reply, not in failed state)
-- Task is related to the current code repository
-- One of the following is true:
-  - Produced a valuable conclusion or change
-  - User explicitly asked to remember this request/task
-
-If the user explicitly asks to remember, this overrides the "valuable conclusion or change" requirement, but task completion and repository relevance are still required.
-
-**Do NOT write when**:
-- Pure Q&A or casual chat (unless the user explicitly asked to remember)
-- Task is still incomplete (awaiting user reply, test failures, etc.)
-- Request is unrelated to the current code repository
-
-**Write steps**:
-1. Get current UTC timestamp (ISO 8601) and repo info
-2. Determine module name, tags, related paths
-3. Build the entry markdown content (front matter + sections)
-4. Call `write` interface once to create and commit atomically
-
-### When User Is Unsatisfied — Delete and Rewrite
-
-1. Call `delete` to remove the corresponding memory
-2. Redo the task per user feedback
-3. Write the new memory
+1. **Search**: extract 3-5 keywords → `search` → select top 5 relevant (by keyword overlap, title, recency) → `read` → reuse or reference. Paginate `skip=100` up to 3 batches if needed.
+2. **Write**: after completing repo-related task that produced valuable outcome (or user asked to remember) → get UTC time + repo info → build entry → `write`. Skip for: pure Q&A, incomplete tasks, non-repo work.
+3. **Delete + rewrite**: if user unsatisfied → `delete` → redo → `write` new memory.
