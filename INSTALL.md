@@ -126,9 +126,9 @@ When a specific tool is provided or reliably detected, upsert `agents-template.m
    alwaysApply: true
    ---
    ```
-2. **Agent Skill symlink** — Cursor scans `~/.cursor/skills/*/SKILL.md` for Agent Skills. Create a symlink from `~/.cursor/skills/gitmemo` → `<installed_path>`:
+2. **Agent Skill link** — Cursor scans `~/.cursor/skills/*/SKILL.md` for Agent Skills. Link `~/.cursor/skills/gitmemo` → `<installed_path>`:
    - Linux/macOS: `ln -sfn <installed_path> ~/.cursor/skills/gitmemo`
-   - Windows: `New-Item -ItemType SymbolicLink -Path "$HOME\.cursor\skills\gitmemo" -Target <installed_path> -Force`
+   - Windows (use directory junction to avoid admin requirement): `cmd /c mklink /J "%USERPROFILE%\.cursor\skills\gitmemo" "<installed_path>"`
 
 ### Step 5 — Report Result
 
