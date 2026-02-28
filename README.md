@@ -71,7 +71,7 @@ Two automation modes are supported:
 Example one-sentence prompts:
 - Install to global (auto-detect, best-effort)
 ```text
-Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode; auto-detect the current coding agent (codex/claude code/gemini cli/copilot/cursor) and integrate agents-template.md using that tool's global rules defined in INSTALL.md; if detection is not reliable, explicitly ask for agent type; if tool is Cursor, write ~/.cursor/rules/gitmemo.mdc with required YAML frontmatter, and on Windows create ~/.cursor/skills/gitmemo as a directory junction to ~/.agents/skills/gitmemo via mklink /J; finally report installed path, commit, agent type, and instruction integration result.
+Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode; auto-detect the current coding agent (codex/claude code/gemini cli/copilot/cursor) and integrate agents-template.md using that tool's global rules defined in INSTALL.md; if detection is not reliable, explicitly ask for agent type; if tool is Cursor, write ~/.cursor/rules/gitmemo.mdc with required YAML frontmatter, and on Windows create ~/.cursor/skills/gitmemo as a directory junction to ~/.agents/skills/gitmemo using an idempotent command (if the path already exists, remove it first, then run mklink /J; no admin required); finally report installed path, commit, agent type, and instruction integration result.
 ```
 
 - Install to global (explicit agent, recommended)
@@ -93,7 +93,7 @@ Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmem
   ```
   - Cursor
   ```text
-  Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode, then integrate agents-template.md using Cursor global rules (write ~/.cursor/rules/gitmemo.mdc with required YAML frontmatter, and on Windows create ~/.cursor/skills/gitmemo as a directory junction to ~/.agents/skills/gitmemo via mklink /J); finally report installed path, commit, and instruction integration result.
+  Follow https://github.com/fonlan/gitmemo/blob/main/INSTALL.md and install gitmemo in global mode, then integrate agents-template.md using Cursor global rules (write ~/.cursor/rules/gitmemo.mdc with required YAML frontmatter, and on Windows create ~/.cursor/skills/gitmemo as a directory junction to ~/.agents/skills/gitmemo using an idempotent command: if the path already exists, remove it first, then run mklink /J; no admin required); finally report installed path, commit, and instruction integration result.
   ```
 - Install to current project
 ```text

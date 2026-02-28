@@ -69,7 +69,7 @@ git submodule add https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
 可直接给代理的一句话示例：
 - 安装到全局（自动识别，best-effort）
 ```text
-根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 global 模式安装 gitmemo；自动识别当前 coding agent（codex/claude code/gemini cli/copilot/cursor），并按 INSTALL.md 中该工具的 global 规则集成 agents-template.md；若无法可靠识别则明确要求用户指定 agent 类型；若工具为 Cursor，则需把模板写入 ~/.cursor/rules/gitmemo.mdc（带必需 YAML frontmatter），并在 Windows 上使用 mklink /J 将 ~/.cursor/skills/gitmemo 创建为指向 ~/.agents/skills/gitmemo 的目录 junction；最后汇报安装路径、commit、agent 类型和指令集成结果。
+根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 global 模式安装 gitmemo；自动识别当前 coding agent（codex/claude code/gemini cli/copilot/cursor），并按 INSTALL.md 中该工具的 global 规则集成 agents-template.md；若无法可靠识别则明确要求用户指定 agent 类型；若工具为 Cursor，则需把模板写入 ~/.cursor/rules/gitmemo.mdc（带必需 YAML frontmatter），并在 Windows 上使用目录 Junction（mklink /J，无需管理员权限）将 ~/.cursor/skills/gitmemo 创建为指向 ~/.agents/skills/gitmemo 的链接，且命令需幂等：若路径已存在先删除，再创建；最后汇报安装路径、commit、agent 类型和指令集成结果。
 ```
 
 - 安装到全局（按工具显式指定，推荐）
@@ -91,7 +91,7 @@ git submodule add https://github.com/fonlan/gitmemo.git .agents/skills/gitmemo
   ```
   - Cursor
   ```text
-  根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 global 模式安装 gitmemo，并按 Cursor 的 global 规则集成 agents-template.md（写入 ~/.cursor/rules/gitmemo.mdc 并添加必需 YAML frontmatter；Windows 上使用 mklink /J 将 ~/.cursor/skills/gitmemo 创建为指向 ~/.agents/skills/gitmemo 的目录 junction）；最后汇报安装路径、commit 和指令集成结果。
+  根据 https://github.com/fonlan/gitmemo/blob/main/INSTALL.md 的流程，以 global 模式安装 gitmemo，并按 Cursor 的 global 规则集成 agents-template.md（写入 ~/.cursor/rules/gitmemo.mdc 并添加必需 YAML frontmatter；Windows 上使用目录 Junction（mklink /J，无需管理员权限）将 ~/.cursor/skills/gitmemo 创建为指向 ~/.agents/skills/gitmemo 的链接，且命令需幂等：若路径已存在先删除，再创建）；最后汇报安装路径、commit 和指令集成结果。
   ```
 - 安装到当前项目
 ```text

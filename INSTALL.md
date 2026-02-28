@@ -128,7 +128,7 @@ When a specific tool is provided or reliably detected, upsert `agents-template.m
    ```
 2. **Agent Skill link** — Cursor scans `~/.cursor/skills/*/SKILL.md` for Agent Skills. Link `~/.cursor/skills/gitmemo` → `<installed_path>`:
    - Linux/macOS: `ln -sfn <installed_path> ~/.cursor/skills/gitmemo`
-   - Windows (use directory junction to avoid admin requirement): `cmd /c mklink /J "%USERPROFILE%\.cursor\skills\gitmemo" "<installed_path>"`
+    - Windows (use a directory junction, no admin required; idempotent: delete existing path first): `cmd /c if exist "%USERPROFILE%\.cursor\skills\gitmemo" rmdir /S /Q "%USERPROFILE%\.cursor\skills\gitmemo" & mklink /J "%USERPROFILE%\.cursor\skills\gitmemo" "<installed_path>"`
 
 ### Step 5 — Report Result
 
