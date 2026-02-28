@@ -9,7 +9,7 @@ Scripts: `scripts/mem.sh` (Linux/macOS) | `scripts/mem.ps1` (Windows). Run from 
 
 On Windows, always invoke via:
 ```powershell
-powershell -ExecutionPolicy Bypass -File "scripts/mem.ps1" <command> [args]
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts/mem.ps1" <command> [args]
 ```
 
 ## Commands

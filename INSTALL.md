@@ -20,14 +20,14 @@ Required files (must exist after install): `SKILL.md`, `agents-template.md`, `sc
 When invoking GitMemo runtime commands on Windows, always use:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "scripts/mem.ps1" <command> [args]
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts/mem.ps1" <command> [args]
 ```
 
 Examples:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "scripts/mem.ps1" init
-powershell -ExecutionPolicy Bypass -File "scripts/mem.ps1" search "memory,keyword" 0 --mode auto
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts/mem.ps1" init
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts/mem.ps1" search "memory,keyword" 0 --mode auto
 ```
 
 ---
