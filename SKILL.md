@@ -7,6 +7,11 @@ description: "Long-term memory for AI agents via local .mem git repo. Interfaces
 
 Scripts: `scripts/mem.sh` (Linux/macOS) | `scripts/mem.ps1` (Windows). Run from **project root**; auto-locates/creates `.mem` repo.
 
+On Windows, always invoke via:
+```powershell
+powershell -Scope Process -ExecutionPolicy Bypass -File "scripts/mem.ps1" <command> [args]
+```
+
 ## Commands
 
 ### init

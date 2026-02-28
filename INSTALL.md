@@ -15,6 +15,21 @@ Repository: `https://github.com/fonlan/gitmemo.git`
 
 Required files (must exist after install): `SKILL.md`, `agents-template.md`, `scripts/mem.ps1`, `scripts/mem.sh`
 
+## 1.1 Windows Runtime Invocation (Policy Bypass)
+
+When invoking GitMemo runtime commands on Windows, always use:
+
+```powershell
+powershell -Scope Process -ExecutionPolicy Bypass -File "scripts/mem.ps1" <command> [args]
+```
+
+Examples:
+
+```powershell
+powershell -Scope Process -ExecutionPolicy Bypass -File "scripts/mem.ps1" init
+powershell -Scope Process -ExecutionPolicy Bypass -File "scripts/mem.ps1" search "memory,keyword" 0 --mode auto
+```
+
 ---
 
 ## 2. Agent Contract
@@ -60,6 +75,8 @@ Origin match pattern: `github.com[:/]+fonlan/gitmemo(\.git)?$`
 ### Step 3 — Validate Required Files
 
 Check that `SKILL.md`, `agents-template.md`, `scripts/mem.ps1`, `scripts/mem.sh` all exist under `<target>`. Abort on any missing file.
+
+If runtime verification is needed on Windows, invoke `scripts/mem.ps1` using the command template in §1.1.
 
 ### Step 4 — Instruction Integration
 
