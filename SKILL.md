@@ -85,4 +85,5 @@ related-paths: src/auth/login.ts
 
 1. **Search**: extract 3-5 keywords → `search` → select top 5 relevant (by keyword overlap, title, recency) → `read` → reuse or reference. Paginate `skip=100` up to 3 batches if needed.
 2. **Write**: after completing repo-related task that produced valuable outcome (or user asked to remember) → get UTC time + repo info → build entry → `write`. Skip for: pure Q&A, incomplete tasks, non-repo work.
+  Also skip for purely operational git actions (e.g., commit/push only) that do not produce a new implementation or analysis outcome.
 3. **Delete + rewrite**: if user unsatisfied → `delete` → redo → `write` new memory.
