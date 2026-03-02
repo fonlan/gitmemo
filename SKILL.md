@@ -5,12 +5,11 @@ description: "Long-term memory for AI agents via local .mem git repo. Interfaces
 
 # GitMemo — AI Agent Long-Term Memory
 
-Scripts: `scripts/mem.sh` (Linux/macOS) | `scripts/mem.ps1` (Windows). Run from **project root**; auto-locates/creates `.mem` repo.
+Scripts: `<SKILL_DIR>/scripts/mem.sh` (Linux/macOS) | `<SKILL_DIR>/scripts/mem.ps1` (Windows).
 
-On Windows, always invoke via:
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "scripts/mem.ps1" <command> [args]
-```
+Path semantics:
+- Script lookup: always resolve `mem.sh`/`mem.ps1` from the **skill installation directory** (`<SKILL_DIR>/scripts`), not from the current project directory. This supports global skill installation.
+- Memory repo location: `.mem` is always in the **current project root** (working directory), and is auto-located/created there.
 
 ## Commands
 
@@ -18,10 +17,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts/mem.ps1" <command> 
 ```bash
 bash <SKILL_DIR>/scripts/mem.sh init
 ```
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" init
+```
 
 ### search
 ```bash
 bash <SKILL_DIR>/scripts/mem.sh search <keywords_csv> [skip] [--mode <and|or|auto>]
+```
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" search <keywords_csv> [skip] [--mode <and|or|auto>]
 ```
 - `keywords_csv`: comma-separated. `skip`: pagination offset (default 0). Up to 100 results/call, format: `hash|title|date`
 - `mode`(default `auto`): `and`=strict, `or`=broad, `auto`=try `and` then fallback `or`
@@ -29,6 +34,9 @@ bash <SKILL_DIR>/scripts/mem.sh search <keywords_csv> [skip] [--mode <and|or|aut
 ### read
 ```bash
 bash <SKILL_DIR>/scripts/mem.sh read <commit_hash>
+```
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" read <commit_hash>
 ```
 
 ### write
@@ -40,12 +48,21 @@ bash <SKILL_DIR>/scripts/mem.sh write \
   --content "<entry_markdown>" \
   --body "<commit_body>"
 ```
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" write `
+  --title "[module] action + object" `
+  --content "<entry_markdown>" `
+  --body "<commit_body>"
+```
 - `--file` optional (defaults to `entries/<timestamp>-<slug>.md`); `--content-file <path>` replaces `--content` for large content
 - Auto-syncs `.mem` branch to current repo branch
 
 ### delete
 ```bash
 bash <SKILL_DIR>/scripts/mem.sh delete <commit_hash>
+```
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" delete <commit_hash>
 ```
 
 ## Entry Format (--content)
