@@ -308,7 +308,7 @@ function Invoke-Write {
     }
 
     if (-not $title) {
-        Write-Error "Usage: mem.ps1 write --title <title> [--file <path>] (--content <markdown> | --content-file <path>) [--body <body>]"
+        Write-Error "Usage: mem.ps1 write --title <title> [--file <path>] (--content-file <path> | --content <markdown>) [--body <body>]"
         return
     }
 
@@ -320,6 +320,10 @@ function Invoke-Write {
     if (-not $content -and -not $contentFile) {
         Write-Error "Error: missing content. Use --content or --content-file."
         return
+    }
+
+    if ($content -and -not $contentFile) {
+        Write-Warning "Passing markdown via --content may hit shell escaping issues. Prefer writing markdown to a temp .md file and pass --content-file."
     }
 
     if ($contentFile -and -not (Test-Path -LiteralPath $contentFile)) {
@@ -445,7 +449,7 @@ switch ($Command) {
         Write-Host "  init                                    Initialize .mem repo"
         Write-Host "  search <keywords_csv> [skip] [mode] [--mode M]  Search memories (M: and|or|auto)"
         Write-Host "  read <commit_hash>                      Read memory content"
-        Write-Host "  write --title T [--file F] (--content C | --content-file P) [--body B]"
+        Write-Host "  write --title T [--file F] (--content-file P | --content C) [--body B]"
         Write-Host "  delete <commit_hash>                    Delete memory entry"
     }
 }

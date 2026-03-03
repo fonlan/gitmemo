@@ -105,7 +105,7 @@ cmd_write() {
     done
 
     if [ -z "$title" ]; then
-        echo "Usage: mem.sh write --title <title> [--file <path>] (--content <markdown> | --content-file <path>) [--body <body>]" >&2
+        echo "Usage: mem.sh write --title <title> [--file <path>] (--content-file <path> | --content <markdown>) [--body <body>]" >&2
         return 1
     fi
 
@@ -117,6 +117,10 @@ cmd_write() {
     if [ -z "$content" ] && [ -z "$content_file" ]; then
         echo "Error: missing content. Use --content or --content-file." >&2
         return 1
+    fi
+
+    if [ -n "$content" ] && [ -z "$content_file" ]; then
+        echo "Warning: --content may hit shell escaping issues. Prefer a temp .md file with --content-file." >&2
     fi
 
     if [ -n "$content_file" ] && [ ! -f "$content_file" ]; then
@@ -407,7 +411,7 @@ case "${1:-help}" in
         echo "  init                                    Initialize .mem repo" >&2
         echo "  search <keywords_csv> [skip] [mode] [--mode M]  Search memories (M: and|or|auto)" >&2
         echo "  read <commit_hash>                      Read memory content" >&2
-        echo "  write --title T [--file F] (--content C | --content-file P) [--body B]" >&2
+        echo "  write --title T [--file F] (--content-file P | --content C) [--body B]" >&2
         echo "  delete <commit_hash>                    Delete memory entry" >&2
         ;;
 esac

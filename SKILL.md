@@ -43,18 +43,27 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1
 
 Single atomic call (create file + git commit):
 ```bash
+tmp_md="$(mktemp)"
+cat > "$tmp_md" <<'EOF'
+<entry_markdown>
+EOF
 bash <SKILL_DIR>/scripts/mem.sh write \
   --title "[module] action + object" \
-  --content "<entry_markdown>" \
+  --content-file "$tmp_md" \
   --body "<commit_body>"
+rm -f "$tmp_md"
 ```
 ```powershell
+$tmpMd = Join-Path $env:TEMP ("gitmemo-" + [guid]::NewGuid().ToString() + ".md")
+[System.IO.File]::WriteAllText($tmpMd, "<entry_markdown>", [System.Text.UTF8Encoding]::new($false))
 powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" write `
   --title "[module] action + object" `
-  --content "<entry_markdown>" `
+  --content-file $tmpMd `
   --body "<commit_body>"
+Remove-Item -LiteralPath $tmpMd -Force
 ```
-- `--file` optional (defaults to `entries/<timestamp>-<slug>.md`); `--content-file <path>` replaces `--content` for large content
+- `--file` optional (defaults to `entries/<timestamp>-<slug>.md`)
+- Prefer `--content-file <path>` with a temporary `.md` file to avoid shell escaping issues; `--content` is kept for compatibility
 - Auto-syncs `.mem` branch to current repo branch
 
 ### delete
