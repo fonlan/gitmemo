@@ -51,7 +51,6 @@ bash <SKILL_DIR>/scripts/mem.sh write \
   --title "[module] action + object" \
   --content-file "$tmp_md" \
   --body "<commit_body>"
-rm -f "$tmp_md"
 ```
 ```powershell
 $tmpMd = Join-Path $env:TEMP ("gitmemo-" + [guid]::NewGuid().ToString() + ".md")
@@ -60,10 +59,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1
   --title "[module] action + object" `
   --content-file $tmpMd `
   --body "<commit_body>"
-Remove-Item -LiteralPath $tmpMd -Force
 ```
 - `--file` optional (defaults to `entries/<timestamp>-<slug>.md`)
 - Prefer `--content-file <path>` with a temporary `.md` file to avoid shell escaping issues; `--content` is kept for compatibility
+- When `--content-file` is used, script auto-deletes the source file after a successful write
 - Auto-syncs `.mem` branch to current repo branch
 
 ### delete

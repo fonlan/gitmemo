@@ -371,6 +371,15 @@ function Invoke-Write {
     }
 
     $hash = git -C $script:MemDir rev-parse HEAD
+
+    if ($contentFile) {
+        try {
+            Remove-Item -LiteralPath $contentFile -Force -ErrorAction Stop
+        } catch {
+            Write-Warning "Write succeeded but failed to delete content file: $contentFile. $($_.Exception.Message)"
+        }
+    }
+
     Write-Output "OK: $hash|$file"
 }
 

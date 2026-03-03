@@ -168,6 +168,13 @@ cmd_write() {
 
     local hash
     hash=$(git -C "$MEM_DIR" rev-parse HEAD)
+
+    if [ -n "$content_file" ]; then
+        if ! rm -f -- "$content_file"; then
+            echo "Warning: write succeeded but failed to delete content file: $content_file" >&2
+        fi
+    fi
+
     echo "OK: $hash|$file"
 }
 
