@@ -138,7 +138,7 @@ function Invoke-Search {
             [string]$SearchMode
         )
 
-        $limit = 100
+        $limit = 20
         $batchSize = 200
         $rawSkip = 0
         $remainingSkip = [Math]::Max(0, $SearchSkip)

@@ -254,7 +254,7 @@ cmd_search() {
         local mode_args=()
         [ "$search_mode" = "and" ] && mode_args+=(--all-match)
 
-        local limit=100
+        local limit=20
         local batch_size=200
         local raw_skip=0
         local remaining_skip="$search_skip"

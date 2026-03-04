@@ -28,7 +28,7 @@ bash <SKILL_DIR>/scripts/mem.sh search <keywords_csv> [skip] [--mode <and|or|aut
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" search <keywords_csv> [skip] [--mode <and|or|auto>]
 ```
-- `keywords_csv`: comma-separated. `skip`: pagination offset (default 0). Up to 100 results/call, format: `hash|title|date`
+- `keywords_csv`: comma-separated. `skip`: pagination offset (default 0). Up to 20 results/call, format: `hash|title|date`
 - `mode`(default `auto`): `and`=strict, `or`=broad, `auto`=try `and` then fallback `or`
 
 ### read
@@ -108,7 +108,7 @@ related-paths: src/auth/login.ts
 
 ## Workflow
 
-1. **Search**: extract 3-5 keywords → `search` → select top 5 relevant (by keyword overlap, title, recency) → `read` → reuse or reference. Paginate `skip=100` up to 3 batches if needed.
+1. **Search**: extract 3-5 keywords → `search` → select top 5 relevant (by keyword overlap, title, recency) → `read` → reuse or reference. Paginate with `skip=20`, then `skip=40` (and continue by +20 if needed).
 2. **Write**: after completing repo-related task that produced valuable outcome (or user asked to remember) → get UTC time + repo info → build entry → `write`. Skip for: pure Q&A, incomplete tasks, non-repo work.
   Also skip for purely operational git actions (e.g., commit/push only) that do not produce a new implementation or analysis outcome.
 3. **Delete + rewrite**: if user unsatisfied → `delete` → redo → `write` new memory.
