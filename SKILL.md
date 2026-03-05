@@ -30,6 +30,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1
 ```
 - `keywords_csv`: comma-separated. `skip`: pagination offset (default 0). Up to 20 results/call, format: `hash|title|date`
 - `mode`(default `auto`): `and`=strict, `or`=broad, `auto`=try `and` then fallback `or`
+- Backend is transparent: if `qmd` is available, scripts use QMD retrieval and keep the same output format; otherwise fallback to `git log --grep`
+- When QMD backend is used, local QMD state lives under `.mem/.qmd/` (config in `.mem/.qmd/config`, sqlite DB in `.mem/.qmd/cache/gitmemo.sqlite`)
+- On first QMD use, scripts auto-run `qmd pull` to bootstrap local models before QMD indexing/search.
 
 ### read
 ```bash
@@ -64,6 +67,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1
 - Prefer `--content-file <path>` with a temporary `.md` file to avoid shell escaping issues; `--content` is kept for compatibility
 - When `--content-file` is used, script auto-deletes the source file after a successful write
 - Auto-syncs `.mem` branch to current repo branch
+- If `qmd` is available, write/delete auto-sync QMD index (missing index triggers full `.mem` index + embed; otherwise incremental update + embed)
 
 ### delete
 ```bash

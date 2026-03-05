@@ -26,6 +26,171 @@ function Resolve-MemDir {
     return Join-Path $root ".mem"
 }
 
+$script:QmdCollectionName = "gitmemo"
+$script:QmdIndexName = $null
+$script:QmdCommand = $null
+$script:QmdModelsBootstrapDone = $false
+
+function Get-QmdCommand {
+    if ($script:QmdCommand) { return $script:QmdCommand }
+
+    $cmd = Get-Command qmd.cmd -ErrorAction SilentlyContinue
+    if ($cmd) {
+        $script:QmdCommand = $cmd.Source
+        return $script:QmdCommand
+    }
+
+    $fallback = Get-Command qmd -ErrorAction SilentlyContinue
+    if ($fallback) {
+        $script:QmdCommand = $fallback.Source
+        return $script:QmdCommand
+    }
+
+    return $null
+}
+
+function Test-QmdAvailable {
+    return [bool](Get-QmdCommand)
+}
+
+function Get-QmdRootDir {
+    return Join-Path $script:MemDir ".qmd"
+}
+
+function Get-QmdConfigDir {
+    return Join-Path (Get-QmdRootDir) "config"
+}
+
+function Get-QmdCacheDir {
+    return Join-Path (Get-QmdRootDir) "cache"
+}
+
+function Get-QmdIndexName {
+    if ($script:QmdIndexName) { return $script:QmdIndexName }
+    $script:QmdIndexName = "gitmemo"
+    return $script:QmdIndexName
+}
+
+function Get-QmdDbPath {
+    param([string]$IndexName)
+    return Join-Path (Get-QmdCacheDir) "$IndexName.sqlite"
+}
+
+function Get-QmdModelBootstrapMarkerPath {
+    return Join-Path (Get-QmdRootDir) "models.bootstrap.ok"
+}
+
+function Initialize-QmdRuntime {
+    param([string]$IndexName)
+
+    New-Item -ItemType Directory -Path (Get-QmdConfigDir) -Force | Out-Null
+    New-Item -ItemType Directory -Path (Get-QmdCacheDir) -Force | Out-Null
+
+    $env:QMD_CONFIG_DIR = Get-QmdConfigDir
+    $env:XDG_CACHE_HOME = Get-QmdCacheDir
+    $env:INDEX_PATH = Get-QmdDbPath -IndexName $IndexName
+}
+
+function Invoke-QmdIndexed {
+    param(
+        [string]$IndexName,
+        [string[]]$Arguments,
+        [switch]$CaptureOutput
+    )
+
+    Initialize-QmdRuntime -IndexName $IndexName
+    $qmdCommand = Get-QmdCommand
+    if (-not $qmdCommand) {
+        if ($CaptureOutput) {
+            return [pscustomobject]@{
+                ExitCode = 1
+                Output = @()
+            }
+        }
+        return 1
+    }
+
+    if ($CaptureOutput) {
+        try {
+            $output = @(& $qmdCommand --index $IndexName @Arguments 2>$null)
+            $exitCode = $LASTEXITCODE
+        }
+        catch {
+            $output = @()
+            $exitCode = 1
+        }
+
+        return [pscustomobject]@{
+            ExitCode = $exitCode
+            Output = $output
+        }
+    }
+
+    try {
+        & $qmdCommand --index $IndexName @Arguments 1>$null 2>$null
+        return $LASTEXITCODE
+    }
+    catch {
+        return 1
+    }
+}
+
+function Ensure-QmdModels {
+    if ($script:QmdModelsBootstrapDone) { return $true }
+
+    $markerPath = Get-QmdModelBootstrapMarkerPath
+    if (Test-Path -LiteralPath $markerPath) {
+        $script:QmdModelsBootstrapDone = $true
+        return $true
+    }
+
+    $indexName = Get-QmdIndexName
+    $pullExitCode = Invoke-QmdIndexed -IndexName $indexName -Arguments @("pull")
+    if ($pullExitCode -ne 0) { return $false }
+
+    $markerDir = Split-Path -Parent $markerPath
+    if ($markerDir) {
+        New-Item -ItemType Directory -Path $markerDir -Force | Out-Null
+    }
+    New-Item -ItemType File -Path $markerPath -Force | Out-Null
+    $script:QmdModelsBootstrapDone = $true
+    return $true
+}
+
+function Ensure-QmdCollection {
+    if (-not (Test-QmdAvailable)) { return $false }
+    if (-not (Ensure-QmdModels)) { return $false }
+
+    $indexName = Get-QmdIndexName
+    if ((Invoke-QmdIndexed -IndexName $indexName -Arguments @("collection", "show", $script:QmdCollectionName)) -eq 0) { return $true }
+
+    $addExitCode = Invoke-QmdIndexed -IndexName $indexName -Arguments @("collection", "add", $script:MemDir, "--name", $script:QmdCollectionName, "--mask", "**/*.md")
+    if ($addExitCode -ne 0) { return $false }
+
+    $embedExitCode = Invoke-QmdIndexed -IndexName $indexName -Arguments @("embed")
+    return ($embedExitCode -eq 0)
+}
+
+function Sync-QmdIndexBestEffort {
+    if (-not (Test-QmdAvailable)) { return }
+    if (-not (Ensure-QmdCollection)) {
+        Write-Warning "qmd detected but failed to initialize index; keeping git backend available."
+        return
+    }
+
+    $indexName = Get-QmdIndexName
+    $updateExitCode = Invoke-QmdIndexed -IndexName $indexName -Arguments @("update")
+    if ($updateExitCode -ne 0) {
+        Write-Warning "qmd update failed; qmd index may be stale."
+        return
+    }
+
+    $embedExitCode = Invoke-QmdIndexed -IndexName $indexName -Arguments @("embed")
+    if ($embedExitCode -ne 0) {
+        Write-Warning "qmd embed failed; qmd vector index may be stale."
+    }
+}
+
 function Initialize-MemoryRepo {
     $script:MemDir = Resolve-MemDir
     if (-not (Test-Path (Join-Path $script:MemDir ".git"))) {
@@ -115,10 +280,14 @@ function Invoke-Search {
         return
     }
 
+    $keywordTerms = New-Object System.Collections.Generic.List[string]
     $grepArgs = @()
     foreach ($kw in ($Keywords -split ',')) {
         $kw = $kw.Trim()
-        if ($kw) { $grepArgs += "--grep=$kw" }
+        if ($kw) {
+            [void]$keywordTerms.Add($kw)
+            $grepArgs += "--grep=$kw"
+        }
     }
 
     if ($grepArgs.Count -eq 0) {
@@ -130,6 +299,87 @@ function Invoke-Search {
     if ($normalizedMode -notin @("and", "or", "auto")) {
         Write-Error "Error: mode must be one of: and, or, auto"
         return
+    }
+
+    function Get-QmdSearchResultsForMode {
+        param(
+            [string[]]$SearchTerms,
+            [int]$SearchSkip,
+            [string]$SearchMode
+        )
+
+        if (-not (Test-QmdAvailable)) {
+            return [pscustomobject]@{ Handled = $false; Success = $false; Results = @() }
+        }
+
+        if (-not (Ensure-QmdCollection)) {
+            return [pscustomobject]@{ Handled = $true; Success = $false; Results = @() }
+        }
+
+        $queryText = if ($SearchMode -eq "or") {
+            [string]::Join(" OR ", $SearchTerms)
+        }
+        else {
+            [string]::Join(" ", $SearchTerms)
+        }
+
+        if (-not $queryText) {
+            return [pscustomobject]@{ Handled = $true; Success = $true; Results = @() }
+        }
+
+        $indexName = Get-QmdIndexName
+        $qmdResult = Invoke-QmdIndexed -IndexName $indexName -Arguments @("query", $queryText, "--all", "--files", "--min-score", "0", "-c", $script:QmdCollectionName) -CaptureOutput
+        if ($qmdResult.ExitCode -ne 0) {
+            return [pscustomobject]@{ Handled = $true; Success = $false; Results = @() }
+        }
+        $rawLines = @($qmdResult.Output)
+
+        $limit = 20
+        $remainingSkip = [Math]::Max(0, $SearchSkip)
+        $results = New-Object System.Collections.Generic.List[string]
+        $seenHashes = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+        $prefix = "qmd://$script:QmdCollectionName/"
+
+        $activeEntries = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+        $activeLines = @(& git -C $script:MemDir ls-tree -r --name-only HEAD -- entries/ 2>$null)
+        foreach ($entry in $activeLines) {
+            if ($entry -and $entry -ne "entries/.gitkeep") {
+                [void]$activeEntries.Add($entry)
+            }
+        }
+
+        foreach ($line in $rawLines) {
+            if (-not $line) { continue }
+            if ($line -notmatch "^[^,]*,[^,]*,([^,]+)") { continue }
+
+            $qmdPath = $Matches[1].Trim()
+            if (-not $qmdPath.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) { continue }
+
+            $relativePath = $qmdPath.Substring($prefix.Length)
+            if ($relativePath -notlike "entries/*.md") { continue }
+            if (-not $activeEntries.Contains($relativePath)) { continue }
+
+            $metaOutput = @(& git -C $script:MemDir log -n 1 --format="%H|%s|%cd" --date=iso -- $relativePath 2>$null)
+            if ($metaOutput.Count -eq 0) { continue }
+
+            $metaLine = ($metaOutput | Select-Object -First 1).Trim()
+            if (-not $metaLine) { continue }
+
+            $hash = ($metaLine -split "\|", 2)[0]
+            if (-not $hash) { continue }
+            if ($seenHashes.Contains($hash)) { continue }
+            [void]$seenHashes.Add($hash)
+
+            if ($remainingSkip -gt 0) {
+                $remainingSkip--
+                continue
+            }
+
+            $results.Add($metaLine)
+            if ($results.Count -ge $limit) { break }
+        }
+
+        return [pscustomobject]@{ Handled = $true; Success = $true; Results = @($results) }
     }
 
     function Get-SearchResults {
@@ -234,6 +484,44 @@ function Invoke-Search {
         }
 
         $results
+    }
+
+    $termArray = $keywordTerms.ToArray()
+    if (Test-QmdAvailable) {
+        if ($normalizedMode -eq "auto") {
+            $autoMinResults = 3
+            $andAttempt = Get-QmdSearchResultsForMode -SearchTerms $termArray -SearchSkip $Skip -SearchMode "and"
+            if ($andAttempt.Handled) {
+                if ($andAttempt.Success) {
+                    if ($andAttempt.Results.Count -ge $autoMinResults) {
+                        $andAttempt.Results
+                        return
+                    }
+
+                    $orAttempt = Get-QmdSearchResultsForMode -SearchTerms $termArray -SearchSkip $Skip -SearchMode "or"
+                    if ($orAttempt.Success) {
+                        $orAttempt.Results
+                        return
+                    }
+
+                    Write-Warning "qmd search failed in auto fallback; using git log backend."
+                }
+                else {
+                    Write-Warning "qmd search failed in auto mode; using git log backend."
+                }
+            }
+        }
+        else {
+            $qmdAttempt = Get-QmdSearchResultsForMode -SearchTerms $termArray -SearchSkip $Skip -SearchMode $normalizedMode
+            if ($qmdAttempt.Handled) {
+                if ($qmdAttempt.Success) {
+                    $qmdAttempt.Results
+                    return
+                }
+
+                Write-Warning "qmd search failed; using git log backend."
+            }
+        }
     }
 
     if ($normalizedMode -eq "auto") {
@@ -389,6 +677,8 @@ function Invoke-Write {
         }
     }
 
+    Sync-QmdIndexBestEffort
+
     Write-Output "OK: $hash|$file"
 }
 
@@ -416,6 +706,7 @@ function Invoke-Delete {
         git -C $script:MemDir rm -q $file
         $basename = [System.IO.Path]::GetFileNameWithoutExtension($file)
         git -C $script:MemDir commit -q -m "delete: remove $basename"
+        Sync-QmdIndexBestEffort
         Write-Output "OK: deleted $file"
     }
     else {
