@@ -1,10 +1,8 @@
 #Requires -Version 5.1
-param(
-    [Parameter(Position=0)]
-    [string]$Command,
-    [Parameter(Position=1, ValueFromRemainingArguments)]
-    [string[]]$Args
-)
+
+# Parse positional CLI arguments manually to avoid binding side effects with automatic variables.
+$Command = if ($args.Count -gt 0) { [string]$args[0] } else { "" }
+$RemainingParameters = if ($args.Count -gt 1) { @($args[1..($args.Count - 1)]) } else { @() }
 
 $ErrorActionPreference = "Stop"
 
@@ -15,7 +13,8 @@ function Find-RepoRoot {
         if ($LASTEXITCODE -eq 0 -and $resolved) {
             $root = ($resolved | Select-Object -First 1).Trim()
         }
-    } catch {
+    }
+    catch {
         $root = $null
     }
     if ($root) { return $root }
@@ -27,7 +26,7 @@ function Resolve-MemDir {
     return Join-Path $root ".mem"
 }
 
-function Ensure-Init {
+function Initialize-MemoryRepo {
     $script:MemDir = Resolve-MemDir
     if (-not (Test-Path (Join-Path $script:MemDir ".git"))) {
         $entries = Join-Path $script:MemDir "entries"
@@ -47,7 +46,8 @@ function Get-SafeBranch {
         if ($LASTEXITCODE -eq 0 -and $resolved) {
             $branch = ($resolved | Select-Object -First 1).Trim()
         }
-    } catch {
+    }
+    catch {
         $branch = $null
     }
     if (-not $branch -or $branch -eq "HEAD") { return "main" }
@@ -60,17 +60,18 @@ function Sync-Branch {
     $memBranch = Get-SafeBranch -Dir $script:MemDir
 
     if ($memBranch -ne $repoBranch) {
-        $exists = git -C $script:MemDir show-ref --verify --quiet "refs/heads/$repoBranch" 2>$null
+        git -C $script:MemDir show-ref --verify --quiet "refs/heads/$repoBranch" 2>$null | Out-Null
         if ($LASTEXITCODE -eq 0) {
             git -C $script:MemDir checkout -q $repoBranch
-        } else {
+        }
+        else {
             git -C $script:MemDir checkout -q -b $repoBranch
         }
     }
     return $repoBranch
 }
 
-function Normalize-EntryPath {
+function Resolve-EntryPath {
     param([string]$File)
     if (-not $File) { return $File }
     if ($File -like "entries/*") { return $File }
@@ -97,7 +98,7 @@ function Convert-ToSlug {
 }
 
 function Invoke-Init {
-    Ensure-Init
+    Initialize-MemoryRepo
     Write-Output "OK: Memory repo initialized at $script:MemDir"
 }
 
@@ -107,7 +108,7 @@ function Invoke-Search {
         [int]$Skip = 0,
         [string]$Mode = "auto"
     )
-    Ensure-Init
+    Initialize-MemoryRepo
 
     if (-not $Keywords) {
         Write-Error "Usage: mem.ps1 search <keywords_csv> [skip] [mode] [--mode <and|or|auto>]"
@@ -183,7 +184,8 @@ function Invoke-Search {
                         ) {
                             if ($remainingSkip -gt 0) {
                                 $remainingSkip--
-                            } else {
+                            }
+                            else {
                                 $results.Add("$currentHash|$currentSubject|$currentDate")
                                 if ($results.Count -ge $limit) { break }
                             }
@@ -220,7 +222,8 @@ function Invoke-Search {
                 ) {
                     if ($remainingSkip -gt 0) {
                         $remainingSkip--
-                    } else {
+                    }
+                    else {
                         $results.Add("$currentHash|$currentSubject|$currentDate")
                     }
                 }
@@ -238,7 +241,8 @@ function Invoke-Search {
         $andResults = @(Get-SearchResults -SearchGrepArgs $grepArgs -SearchSkip $Skip -SearchMode "and")
         if ($andResults.Count -ge $autoMinResults) {
             $andResults
-        } else {
+        }
+        else {
             Get-SearchResults -SearchGrepArgs $grepArgs -SearchSkip $Skip -SearchMode "or"
         }
         return
@@ -249,7 +253,7 @@ function Invoke-Search {
 
 function Invoke-Read {
     param([string]$CommitHash)
-    Ensure-Init
+    Initialize-MemoryRepo
 
     if (-not $CommitHash) {
         Write-Error "Usage: mem.ps1 read <commit_hash>"
@@ -263,14 +267,15 @@ function Invoke-Read {
 
     if ($file) {
         git -C $script:MemDir show "${CommitHash}:${file}" 2>$null
-    } else {
+    }
+    else {
         Write-Error "Error: no entry file found in commit $CommitHash"
     }
 }
 
 function Invoke-Write {
     param([string[]]$Params)
-    Ensure-Init
+    Initialize-MemoryRepo
 
     $file = ""
     $title = ""
@@ -335,8 +340,9 @@ function Invoke-Write {
         $timestamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
         $slug = Convert-ToSlug -Text $title
         $file = "entries/$timestamp-$slug.md"
-    } else {
-        $file = Normalize-EntryPath -File $file
+    }
+    else {
+        $file = Resolve-EntryPath -File $file
     }
 
     if (-not (Test-SafeEntryPath -File $file)) {
@@ -358,7 +364,8 @@ function Invoke-Write {
 
     if ($contentFile) {
         Copy-Item -LiteralPath $contentFile -Destination $fullPath -Force
-    } else {
+    }
+    else {
         $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
         [System.IO.File]::WriteAllText($fullPath, $content + "`n", $utf8NoBom)
     }
@@ -366,7 +373,8 @@ function Invoke-Write {
     git -C $script:MemDir add $file
     if ($body) {
         git -C $script:MemDir commit -q -m $title -m $body
-    } else {
+    }
+    else {
         git -C $script:MemDir commit -q -m $title
     }
 
@@ -375,7 +383,8 @@ function Invoke-Write {
     if ($contentFile) {
         try {
             Remove-Item -LiteralPath $contentFile -Force -ErrorAction Stop
-        } catch {
+        }
+        catch {
             Write-Warning "Write succeeded but failed to delete content file: $contentFile. $($_.Exception.Message)"
         }
     }
@@ -385,7 +394,7 @@ function Invoke-Write {
 
 function Invoke-Delete {
     param([string]$CommitHash)
-    Ensure-Init
+    Initialize-MemoryRepo
 
     if (-not $CommitHash) {
         Write-Error "Usage: mem.ps1 delete <commit_hash>"
@@ -408,41 +417,42 @@ function Invoke-Delete {
         $basename = [System.IO.Path]::GetFileNameWithoutExtension($file)
         git -C $script:MemDir commit -q -m "delete: remove $basename"
         Write-Output "OK: deleted $file"
-    } else {
+    }
+    else {
         Write-Error "Error: file already deleted: $file"
     }
 }
 
 switch ($Command) {
-    "init"   { Invoke-Init }
+    "init" { Invoke-Init }
     "search" {
-        $kw = if ($Args.Count -ge 1) { $Args[0] } else { "" }
+        $kw = if ($RemainingParameters.Count -ge 1) { $RemainingParameters[0] } else { "" }
         $sk = 0
         $mode = "auto"
         $idx = 1
 
-        if ($Args.Count -ge 2 -and $Args[1] -match "^-?\d+$") {
-            $sk = [int]$Args[1]
+        if ($RemainingParameters.Count -ge 2 -and $RemainingParameters[1] -match "^-?\d+$") {
+            $sk = [int]$RemainingParameters[1]
             $idx = 2
         }
 
-        if ($Args.Count -gt $idx -and $Args[$idx] -ne "--mode") {
-            $mode = $Args[$idx]
+        if ($RemainingParameters.Count -gt $idx -and $RemainingParameters[$idx] -ne "--mode") {
+            $mode = $RemainingParameters[$idx]
             $idx++
         }
 
-        while ($idx -lt $Args.Count) {
-            switch ($Args[$idx]) {
+        while ($idx -lt $RemainingParameters.Count) {
+            switch ($RemainingParameters[$idx]) {
                 "--mode" {
-                    if ($idx + 1 -ge $Args.Count) {
+                    if ($idx + 1 -ge $RemainingParameters.Count) {
                         Write-Error "Error: --mode requires a value (and|or|auto)"
                         return
                     }
-                    $mode = $Args[$idx + 1]
+                    $mode = $RemainingParameters[$idx + 1]
                     $idx += 2
                 }
                 default {
-                    Write-Error "Unknown option for search: $($Args[$idx])"
+                    Write-Error "Unknown option for search: $($RemainingParameters[$idx])"
                     return
                 }
             }
@@ -450,10 +460,10 @@ switch ($Command) {
 
         Invoke-Search -Keywords $kw -Skip $sk -Mode $mode
     }
-    "read"   { Invoke-Read -CommitHash ($Args | Select-Object -First 1) }
-    "write"  { Invoke-Write -Params $Args }
-    "delete" { Invoke-Delete -CommitHash ($Args | Select-Object -First 1) }
-    default  {
+    "read" { Invoke-Read -CommitHash ($RemainingParameters | Select-Object -First 1) }
+    "write" { Invoke-Write -Params $RemainingParameters }
+    "delete" { Invoke-Delete -CommitHash ($RemainingParameters | Select-Object -First 1) }
+    default {
         Write-Host "Usage: mem.ps1 {init|search|read|write|delete}"
         Write-Host "  init                                    Initialize .mem repo"
         Write-Host "  search <keywords_csv> [skip] [mode] [--mode M]  Search memories (M: and|or|auto)"

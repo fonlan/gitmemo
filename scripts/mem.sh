@@ -4,7 +4,7 @@ set -euo pipefail
 MEM_DIR=""
 
 find_repo_root() {
-    git rev-parse --show-toplevel 2>/dev/null || echo "$(pwd)"
+    git rev-parse --show-toplevel 2>/dev/null || pwd
 }
 
 get_branch() {
@@ -68,7 +68,7 @@ normalize_entry_file() {
 is_safe_entry_path() {
     local file="$1"
     case "$file" in
-        /*|*../*|*/..|../*|*\\*|*:*)
+        /*|*../*|*/..|*\\*|*:*)
             return 1
             ;;
         *)
