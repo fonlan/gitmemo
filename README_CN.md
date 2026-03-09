@@ -8,7 +8,6 @@
 - 全自动：代理会在任务流程中自动执行 `init`、`search`、`read`、`write`、`delete`
 - 纯本地、离线可用：记忆保存在本地 `.mem` Git 仓库，不依赖云端服务
 - 除 Git 外无依赖：运行只要求 Git 环境
-- 可选语义检索后端：若检测到 `qmd`，脚本会透明使用 QMD 检索与 embedding 更新；未检测到则自动回退到 `git log --grep`
 - 省 Token：通过检索并复用历史结论，减少重复上下文注入
 - 不会导致上下文爆炸：先搜索再读取，且相关记忆读取上限为 5 条
 - 可审计：所有记忆操作都有 Git 历史可查
@@ -20,21 +19,8 @@
 - 将已完成任务沉淀为 `.mem/entries/` 下的 Markdown 记忆条目
 - 在代理任务过程中自动执行：`init`、`search`、`read`、`write`、`delete`
 - `search` 支持 `and`、`or`、默认 `auto` 三种匹配模式（先 AND，不足再回退 OR）
-- 透明自动检测 QMD：可用时 `search` 优先用 QMD（输出仍为 `hash|title|date`），`write`/`delete` 会同步 QMD 索引；不可用时保持 Git-only 方案
 - 在 `write` 时自动将 `.mem` 分支与当前项目分支对齐
 - 可通过各类代理指令文件统一约束记忆流程
-
-## 可选 QMD 后端（透明模式）
-
-- 无需额外参数，`mem.ps1` / `mem.sh` 会自动检测 `qmd`。
-- 若可用，`search` 使用 QMD 检索，但输出格式保持 `hash|title|date`，可直接用于 `read`。
-- QMD 的配置与索引状态存放在 `.mem/.qmd/`：
-  - 配置目录：`.mem/.qmd/config`
-  - 缓存与 sqlite 索引库：`.mem/.qmd/cache/gitmemo.sqlite`
-- 首次使用 QMD 时，脚本会自动执行 `qmd pull` 下载所需本地模型。
-- 首次写入且未建索引时，会对 `.mem` 做全量索引并执行 embedding。
-- 后续 `write` / `delete` 执行增量 `update + embed`。
-- 若 QMD 不可用或执行失败，会自动回退到 `git log --grep`，不影响现有工作流。
 
 ## Git Memory 与向量数据库 Memory 对比
 

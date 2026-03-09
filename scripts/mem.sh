@@ -2,9 +2,6 @@
 set -euo pipefail
 
 MEM_DIR=""
-QMD_COLLECTION_NAME="gitmemo"
-QMD_INDEX_NAME=""
-QMD_MODELS_BOOTSTRAP_DONE=0
 
 find_repo_root() {
     git rev-parse --show-toplevel 2>/dev/null || pwd
@@ -24,130 +21,6 @@ resolve_mem_dir() {
     local root
     root=$(find_repo_root)
     MEM_DIR="$root/.mem"
-}
-
-qmd_available() {
-    command -v qmd >/dev/null 2>&1
-}
-
-qmd_root_dir() {
-    echo "$MEM_DIR/.qmd"
-}
-
-qmd_config_dir() {
-    echo "$(qmd_root_dir)/config"
-}
-
-qmd_cache_dir() {
-    echo "$(qmd_root_dir)/cache"
-}
-
-qmd_db_path() {
-    local index_name="$1"
-    echo "$(qmd_cache_dir)/${index_name}.sqlite"
-}
-
-qmd_models_bootstrap_marker() {
-    echo "$(qmd_root_dir)/models.bootstrap.ok"
-}
-
-prepare_qmd_runtime() {
-    mkdir -p "$(qmd_config_dir)" "$(qmd_cache_dir)"
-}
-
-run_qmd_indexed() {
-    local index_name="$1"
-    shift
-
-    prepare_qmd_runtime
-    local config_dir cache_dir db_path
-    config_dir=$(qmd_config_dir)
-    cache_dir=$(qmd_cache_dir)
-    db_path=$(qmd_db_path "$index_name")
-
-    QMD_CONFIG_DIR="$config_dir" \
-    XDG_CACHE_HOME="$cache_dir" \
-    INDEX_PATH="$db_path" \
-    qmd --index "$index_name" "$@"
-}
-
-qmd_index_name() {
-    if [ -n "$QMD_INDEX_NAME" ]; then
-        echo "$QMD_INDEX_NAME"
-        return 0
-    fi
-
-    QMD_INDEX_NAME="gitmemo"
-    echo "$QMD_INDEX_NAME"
-}
-
-ensure_qmd_models() {
-    if [ "$QMD_MODELS_BOOTSTRAP_DONE" -eq 1 ]; then
-        return 0
-    fi
-
-    local marker
-    marker=$(qmd_models_bootstrap_marker)
-    if [ -f "$marker" ]; then
-        QMD_MODELS_BOOTSTRAP_DONE=1
-        return 0
-    fi
-
-    local index_name
-    index_name=$(qmd_index_name)
-    if ! run_qmd_indexed "$index_name" pull >/dev/null 2>&1; then
-        return 1
-    fi
-
-    mkdir -p "$(dirname "$marker")"
-    : > "$marker"
-    QMD_MODELS_BOOTSTRAP_DONE=1
-    return 0
-}
-
-ensure_qmd_collection() {
-    local index_name="$1"
-
-    if ! ensure_qmd_models; then
-        return 1
-    fi
-
-    if run_qmd_indexed "$index_name" collection show "$QMD_COLLECTION_NAME" >/dev/null 2>&1; then
-        return 0
-    fi
-
-    if ! run_qmd_indexed "$index_name" collection add "$MEM_DIR" --name "$QMD_COLLECTION_NAME" --mask "**/*.md" >/dev/null 2>&1; then
-        return 1
-    fi
-
-    if ! run_qmd_indexed "$index_name" embed >/dev/null 2>&1; then
-        return 1
-    fi
-
-    return 0
-}
-
-sync_qmd_index_best_effort() {
-    if ! qmd_available; then
-        return 0
-    fi
-
-    local index_name
-    index_name=$(qmd_index_name)
-
-    if ! ensure_qmd_collection "$index_name"; then
-        echo "Warning: qmd detected but failed to initialize index; keeping git backend available." >&2
-        return 0
-    fi
-
-    if ! run_qmd_indexed "$index_name" update >/dev/null 2>&1; then
-        echo "Warning: qmd update failed; qmd index may be stale." >&2
-        return 0
-    fi
-
-    if ! run_qmd_indexed "$index_name" embed >/dev/null 2>&1; then
-        echo "Warning: qmd embed failed; qmd vector index may be stale." >&2
-    fi
 }
 
 ensure_init() {
@@ -302,8 +175,6 @@ cmd_write() {
         fi
     fi
 
-    sync_qmd_index_best_effort
-
     echo "OK: $hash|$file"
 }
 
@@ -376,97 +247,6 @@ cmd_search() {
         echo "Error: no valid keywords" >&2
         return 1
     fi
-
-    run_qmd_search_for_mode() {
-        local search_mode="$1"
-        local search_skip="$2"
-        shift 2
-        local terms=("$@")
-
-        local query_text=""
-        local term
-        for term in "${terms[@]}"; do
-            if [ -z "$query_text" ]; then
-                query_text="$term"
-            else
-                if [ "$search_mode" = "or" ]; then
-                    query_text="$query_text OR $term"
-                else
-                    query_text="$query_text $term"
-                fi
-            fi
-        done
-
-        if [ -z "$query_text" ]; then
-            return 0
-        fi
-
-        local index_name
-        index_name=$(qmd_index_name)
-
-        local qmd_output
-        if ! qmd_output=$(run_qmd_indexed "$index_name" query "$query_text" --all --files --min-score 0 -c "$QMD_COLLECTION_NAME" 2>/dev/null); then
-            return 1
-        fi
-
-        local limit=20
-        local remaining_skip="$search_skip"
-        local results=()
-        local seen_hashes=$'\n'
-
-        local active_entries
-        active_entries=$(git -C "$MEM_DIR" ls-tree -r --name-only HEAD -- entries/ 2>/dev/null || true)
-        local active_entries_nl=$'\n'"$active_entries"$'\n'
-        local prefix="qmd://$QMD_COLLECTION_NAME/"
-
-        while IFS= read -r line; do
-            [ -z "$line" ] && continue
-
-            local qmd_path
-            qmd_path=$(printf '%s\n' "$line" | awk -F',' '{print $3}')
-            [ -z "$qmd_path" ] && continue
-
-            case "$qmd_path" in
-                "$prefix"*) ;;
-                *) continue ;;
-            esac
-
-            local rel_path
-            rel_path="${qmd_path#"$prefix"}"
-            case "$rel_path" in
-                entries/*.md) ;;
-                *) continue ;;
-            esac
-
-            if [[ "$active_entries_nl" != *$'\n'"$rel_path"$'\n'* ]]; then
-                continue
-            fi
-
-            local meta hash
-            meta=$(git -C "$MEM_DIR" log -n 1 --format='%H|%s|%cd' --date=iso -- "$rel_path" 2>/dev/null | head -n 1)
-            [ -z "$meta" ] && continue
-
-            hash="${meta%%|*}"
-            [ -z "$hash" ] && continue
-            if [[ "$seen_hashes" == *$'\n'"$hash"$'\n'* ]]; then
-                continue
-            fi
-            seen_hashes+="$hash"$'\n'
-
-            if [ "$remaining_skip" -gt 0 ]; then
-                remaining_skip=$((remaining_skip - 1))
-                continue
-            fi
-
-            results+=("$meta")
-            if [ "${#results[@]}" -ge "$limit" ]; then
-                break
-            fi
-        done <<< "$qmd_output"
-
-        printf '%s\n' "${results[@]}"
-        return 0
-    }
 
     run_search_for_mode() {
         local search_mode="$1"
@@ -555,41 +335,6 @@ cmd_search() {
         printf '%s\n' "${results[@]}"
     }
 
-    if qmd_available; then
-        local qmd_idx
-        qmd_idx=$(qmd_index_name)
-        if ensure_qmd_collection "$qmd_idx"; then
-            if [ "$mode" = "auto" ]; then
-                local qmd_auto_min_results=3
-                local qmd_and_results qmd_and_count
-                if qmd_and_results="$(run_qmd_search_for_mode and "$skip" "${kw_array[@]}")"; then
-                    qmd_and_count=$(printf '%s\n' "$qmd_and_results" | awk 'NF { c++ } END { print c + 0 }')
-                    if [ "$qmd_and_count" -ge "$qmd_auto_min_results" ]; then
-                        printf '%s\n' "$qmd_and_results" | sed '/^$/d'
-                        return 0
-                    fi
-                    local qmd_or_results
-                    if qmd_or_results="$(run_qmd_search_for_mode or "$skip" "${kw_array[@]}")"; then
-                        printf '%s\n' "$qmd_or_results" | sed '/^$/d'
-                        return 0
-                    fi
-                    echo "Warning: qmd search failed in auto fallback; using git log backend." >&2
-                else
-                    echo "Warning: qmd search failed in auto mode; using git log backend." >&2
-                fi
-            else
-                local qmd_mode_results
-                if qmd_mode_results="$(run_qmd_search_for_mode "$mode" "$skip" "${kw_array[@]}")"; then
-                    printf '%s\n' "$qmd_mode_results" | sed '/^$/d'
-                    return 0
-                fi
-                echo "Warning: qmd search failed; using git log backend." >&2
-            fi
-        else
-            echo "Warning: qmd detected but index initialization failed; using git log backend." >&2
-        fi
-    fi
-
     if [ "$mode" = "auto" ]; then
         local auto_min_results=3
         local and_results and_count
@@ -655,7 +400,6 @@ cmd_delete() {
     if [ -f "$MEM_DIR/$file" ]; then
         git -C "$MEM_DIR" rm -q "$file"
         git -C "$MEM_DIR" commit -q -m "delete: remove $(basename "$file" .md)"
-        sync_qmd_index_best_effort
         echo "OK: deleted $file"
     else
         echo "Error: file already deleted: $file" >&2

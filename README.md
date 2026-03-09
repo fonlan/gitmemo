@@ -10,7 +10,6 @@ A fully automated skill that gives coding agents long-term memory through a **lo
 - Fully automated: the agent runs `init`, `search`, `read`, `write`, and `delete` as part of normal task flow
 - Local-only and offline-capable: memory is stored in a local `.mem` Git repository, with no cloud dependency
 - Git-only dependency: no runtime dependency beyond Git
-- Optional semantic backend: if `qmd` is detected, scripts transparently use QMD retrieval + embedding updates; if not, they automatically fall back to `git log --grep`
 - Token-efficient: reuses prior conclusions through search instead of re-injecting repeated context
 - Prevents context bloat: search-first workflow with a max read scope of 5 relevant memories
 - Auditable: every memory action is visible in Git history
@@ -22,21 +21,8 @@ A fully automated skill that gives coding agents long-term memory through a **lo
 - Stores completed task outcomes as markdown entries under `.mem/entries/`
 - Runs memory operations automatically (`init`, `search`, `read`, `write`, `delete`) during agent tasks
 - Supports `search` match modes: `and`, `or`, and default `auto` (AND-first, OR fallback)
-- Transparently auto-detects QMD: `search` prefers QMD when available (same `hash|title|date` output), while `write`/`delete` keep QMD index in sync; fallback remains Git-only
 - Aligns the `.mem` branch with the current project branch during `write`
 - Integrates with agent instruction files so all agents follow the same memory policy
-
-## Optional QMD Backend (Transparent)
-
-- No extra flags are required. `mem.ps1` / `mem.sh` auto-detect `qmd`.
-- If QMD is present, `search` uses QMD retrieval and still returns `hash|title|date` (compatible with `read`).
-- QMD config/index state is stored under `.mem/.qmd/`:
-  - config: `.mem/.qmd/config`
-  - cache + sqlite index DB: `.mem/.qmd/cache/gitmemo.sqlite`
-- On first QMD use, scripts auto-run `qmd pull` to bootstrap required local models.
-- On first indexed write (or when index is missing), scripts create a full `.mem` collection index and run embedding.
-- Subsequent writes/deletes trigger incremental QMD update + embedding.
-- If QMD is missing or QMD search/update fails, scripts gracefully fall back to `git log --grep` behavior.
 
 ## Git-Based vs Vector-DB Memory
 
