@@ -5,8 +5,12 @@ $Command = if ($args.Count -gt 0) { [string]$args[0] } else { "" }
 $RemainingParameters = if ($args.Count -gt 1) { @($args[1..($args.Count - 1)]) } else { @() }
 
 $ErrorActionPreference = "Stop"
+$script:RepoRoot = $null
+$script:MemDir = $null
 
 function Find-RepoRoot {
+    if ($script:RepoRoot) { return $script:RepoRoot }
+
     $root = $null
     try {
         $resolved = & git rev-parse --show-toplevel 2>$null
@@ -17,13 +21,19 @@ function Find-RepoRoot {
     catch {
         $root = $null
     }
-    if ($root) { return $root }
-    return (Get-Location).Path
+    if (-not $root) {
+        $root = (Get-Location).Path
+    }
+
+    $script:RepoRoot = $root
+    return $script:RepoRoot
 }
 
 function Resolve-MemDir {
-    $root = Find-RepoRoot
-    return Join-Path $root ".mem"
+    if ($script:MemDir) { return $script:MemDir }
+
+    $script:MemDir = Join-Path (Find-RepoRoot) ".mem"
+    return $script:MemDir
 }
 
 function Normalize-EntryLikePath {
@@ -38,7 +48,7 @@ function Normalize-EntryLikePath {
 
 function Initialize-MemoryRepo {
     $script:MemDir = Resolve-MemDir
-    if (-not (Test-Path (Join-Path $script:MemDir ".git"))) {
+    if (-not (Test-Path -LiteralPath (Join-Path $script:MemDir ".git") -PathType Container)) {
         $entries = Join-Path $script:MemDir "entries"
         New-Item -ItemType Directory -Path $entries -Force | Out-Null
         git -C $script:MemDir init -q
@@ -174,6 +184,14 @@ function Invoke-Search {
         return
     }
 
+    $activeEntries = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    $activeLines = @(& git -C $script:MemDir ls-tree -r --name-only HEAD -- entries/ 2>$null)
+    foreach ($entry in $activeLines) {
+        if ($entry -and $entry -ne "entries/.gitkeep") {
+            [void]$activeEntries.Add($entry)
+        }
+    }
+
     function Get-SearchResults {
         param(
             [string[]]$SearchGrepArgs,
@@ -188,15 +206,6 @@ function Invoke-Search {
         $results = New-Object System.Collections.Generic.List[string]
         $modeArgs = @()
         if ($SearchMode -eq "and") { $modeArgs += "--all-match" }
-
-        # Build an in-memory set of active entry files once to avoid per-commit git calls.
-        $activeEntries = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
-        $activeLines = @(& git -C $script:MemDir ls-tree -r --name-only HEAD -- entries/ 2>$null)
-        foreach ($entry in $activeLines) {
-            if ($entry -and $entry -ne "entries/.gitkeep") {
-                [void]$activeEntries.Add($entry)
-            }
-        }
 
         while ($results.Count -lt $limit) {
             $gitArgs = @("log") + $SearchGrepArgs + $modeArgs + @(
@@ -293,6 +302,19 @@ function Invoke-Search {
     Get-SearchResults -SearchGrepArgs $grepArgs -SearchSkip $Skip -SearchMode $normalizedMode
 }
 
+function Get-EntryFileFromCommit {
+    param([string]$CommitHash)
+
+    if (-not $CommitHash) { return "" }
+
+    $file = git -C $script:MemDir diff-tree --no-commit-id --name-only -r $CommitHash -- entries/ 2>$null | Select-Object -First 1
+    if (-not $file) {
+        $file = git -C $script:MemDir diff-tree --root --no-commit-id --name-only -r $CommitHash -- entries/ 2>$null | Select-Object -First 1
+    }
+
+    return $file
+}
+
 function Invoke-Read {
     param([string]$CommitHash)
     Initialize-MemoryRepo
@@ -302,10 +324,7 @@ function Invoke-Read {
         return
     }
 
-    $file = git -C $script:MemDir diff-tree --no-commit-id --name-only -r $CommitHash -- entries/ 2>$null | Select-Object -First 1
-    if (-not $file) {
-        $file = git -C $script:MemDir diff-tree --root --no-commit-id --name-only -r $CommitHash -- entries/ 2>$null | Select-Object -First 1
-    }
+    $file = Get-EntryFileFromCommit -CommitHash $CommitHash
 
     if ($file) {
         git -C $script:MemDir show "${CommitHash}:${file}" 2>$null
@@ -450,7 +469,7 @@ function Invoke-Write {
         }
     }
 
-    git -C $script:MemDir add $file
+    git -C $script:MemDir add -- $file
     if ($body) {
         git -C $script:MemDir commit -q -m $title -m $body
     }
@@ -481,10 +500,7 @@ function Invoke-Delete {
         return
     }
 
-    $file = git -C $script:MemDir diff-tree --no-commit-id --name-only -r $CommitHash -- entries/ 2>$null | Select-Object -First 1
-    if (-not $file) {
-        $file = git -C $script:MemDir diff-tree --root --no-commit-id --name-only -r $CommitHash -- entries/ 2>$null | Select-Object -First 1
-    }
+    $file = Get-EntryFileFromCommit -CommitHash $CommitHash
 
     if (-not $file) {
         Write-Error "Error: no entry file found in commit $CommitHash"
@@ -492,8 +508,8 @@ function Invoke-Delete {
     }
 
     $fullPath = Join-Path $script:MemDir $file
-    if (Test-Path $fullPath) {
-        git -C $script:MemDir rm -q $file
+    if (Test-Path -LiteralPath $fullPath -PathType Leaf) {
+        git -C $script:MemDir rm -q -- $file
         $basename = [System.IO.Path]::GetFileNameWithoutExtension($file)
         git -C $script:MemDir commit -q -m "delete: remove $basename"
         Write-Output "OK: deleted $file"
