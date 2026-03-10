@@ -1,3 +1,5 @@
 .mem/
+.agents/
 .pptx_build/
 artifacts/
+skills-lock.json

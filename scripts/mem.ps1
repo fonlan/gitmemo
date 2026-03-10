@@ -26,6 +26,16 @@ function Resolve-MemDir {
     return Join-Path $root ".mem"
 }
 
+function Normalize-EntryLikePath {
+    param([string]$Path)
+    if (-not $Path) { return "" }
+    $normalized = $Path -replace "\\", "/"
+    if ($normalized.StartsWith("./")) {
+        $normalized = $normalized.Substring(2)
+    }
+    return $normalized
+}
+
 function Initialize-MemoryRepo {
     $script:MemDir = Resolve-MemDir
     if (-not (Test-Path (Join-Path $script:MemDir ".git"))) {
@@ -33,7 +43,7 @@ function Initialize-MemoryRepo {
         New-Item -ItemType Directory -Path $entries -Force | Out-Null
         git -C $script:MemDir init -q
         New-Item -ItemType File -Path (Join-Path $entries ".gitkeep") -Force | Out-Null
-        git -C $script:MemDir add .
+        git -C $script:MemDir add "entries/.gitkeep"
         git -C $script:MemDir commit -q -m "init: initialize memory repo"
     }
 }
@@ -74,8 +84,40 @@ function Sync-Branch {
 function Resolve-EntryPath {
     param([string]$File)
     if (-not $File) { return $File }
-    if ($File -like "entries/*") { return $File }
-    return "entries/$File"
+    $directEntry = Get-DirectEntryPath -Path $File
+    if ($directEntry) { return $directEntry }
+
+    $normalized = Normalize-EntryLikePath -Path $File
+    if (-not $normalized) { return $normalized }
+    return "entries/$normalized"
+}
+
+function Get-DirectEntryPath {
+    param([string]$Path)
+    if (-not $Path) { return "" }
+
+    $normalized = Normalize-EntryLikePath -Path $Path
+    if ($normalized -like ".mem/entries/*") {
+        return $normalized.Substring(5)
+    }
+    if ($normalized -like "entries/*") {
+        return $normalized
+    }
+
+    try {
+        $fullPath = [System.IO.Path]::GetFullPath($Path)
+        $memPrefix = [System.IO.Path]::GetFullPath($script:MemDir).TrimEnd('\\', '/') + [System.IO.Path]::DirectorySeparatorChar
+        $entriesPrefix = [System.IO.Path]::GetFullPath((Join-Path $script:MemDir "entries")).TrimEnd('\\', '/') + [System.IO.Path]::DirectorySeparatorChar
+        if ($fullPath.StartsWith($entriesPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $relative = $fullPath.Substring($memPrefix.Length)
+            return (Normalize-EntryLikePath -Path $relative)
+        }
+    }
+    catch {
+        return ""
+    }
+
+    return ""
 }
 
 function Test-SafeEntryPath {
@@ -282,6 +324,9 @@ function Invoke-Write {
     $body = ""
     $content = ""
     $contentFile = ""
+    $directContentFile = ""
+    $reuseExistingFile = $false
+    $deleteSourceFile = $false
 
     for ($i = 0; $i -lt $Params.Count; $i++) {
         switch ($Params[$i]) {
@@ -313,17 +358,12 @@ function Invoke-Write {
     }
 
     if (-not $title) {
-        Write-Error "Usage: mem.ps1 write --title <title> [--file <path>] (--content-file <path> | --content <markdown>) [--body <body>]"
+        Write-Error "Usage: mem.ps1 write --title <title> [--file <path>] [--body <body>] [--content-file <path> | --content <markdown>]"
         return
     }
 
     if ($content -and $contentFile) {
         Write-Error "Error: use only one of --content or --content-file"
-        return
-    }
-
-    if (-not $content -and -not $contentFile) {
-        Write-Error "Error: missing content. Use --content or --content-file."
         return
     }
 
@@ -336,13 +376,28 @@ function Invoke-Write {
         return
     }
 
-    if (-not $file) {
+    if ($contentFile) {
+        $directContentFile = Get-DirectEntryPath -Path $contentFile
+    }
+
+    if ($file) {
+        $file = Resolve-EntryPath -File $file
+        if ($directContentFile -and $file -ne $directContentFile) {
+            Write-Error "Error: --file must match the existing .mem/entries path referenced by --content-file"
+            return
+        }
+    }
+    elseif ($directContentFile) {
+        $file = $directContentFile
+    }
+    elseif ($content -or $contentFile) {
         $timestamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
         $slug = Convert-ToSlug -Text $title
         $file = "entries/$timestamp-$slug.md"
     }
     else {
-        $file = Resolve-EntryPath -File $file
+        Write-Error "Error: missing content. Use --content, --content-file, or pre-write a .mem/entries file and pass --file."
+        return
     }
 
     if (-not (Test-SafeEntryPath -File $file)) {
@@ -358,16 +413,41 @@ function Invoke-Write {
 
     $fullPath = Join-Path $script:MemDir $file
     $targetDir = Split-Path -Parent $fullPath
-    if ($targetDir) {
-        New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+
+    if ($directContentFile) {
+        $reuseExistingFile = $true
+    }
+    elseif (-not $content -and -not $contentFile) {
+        if (Test-Path -LiteralPath $fullPath -PathType Leaf) {
+            $reuseExistingFile = $true
+        }
+        else {
+            Write-Error "Error: existing entry file not found: $fullPath"
+            return
+        }
+    }
+    elseif ($contentFile) {
+        $deleteSourceFile = $true
     }
 
-    if ($contentFile) {
-        Copy-Item -LiteralPath $contentFile -Destination $fullPath -Force
+    if ($reuseExistingFile) {
+        if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+            Write-Error "Error: existing entry file not found after branch sync: $fullPath"
+            return
+        }
     }
     else {
-        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-        [System.IO.File]::WriteAllText($fullPath, $content + "`n", $utf8NoBom)
+        if ($targetDir) {
+            New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+        }
+
+        if ($contentFile) {
+            Copy-Item -LiteralPath $contentFile -Destination $fullPath -Force
+        }
+        else {
+            $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+            [System.IO.File]::WriteAllText($fullPath, $content + "`n", $utf8NoBom)
+        }
     }
 
     git -C $script:MemDir add $file
@@ -380,7 +460,7 @@ function Invoke-Write {
 
     $hash = git -C $script:MemDir rev-parse HEAD
 
-    if ($contentFile) {
+    if ($deleteSourceFile) {
         try {
             Remove-Item -LiteralPath $contentFile -Force -ErrorAction Stop
         }
@@ -468,7 +548,7 @@ switch ($Command) {
         Write-Host "  init                                    Initialize .mem repo"
         Write-Host "  search <keywords_csv> [skip] [mode] [--mode M]  Search memories (M: and|or|auto)"
         Write-Host "  read <commit_hash>                      Read memory content"
-        Write-Host "  write --title T [--file F] (--content-file P | --content C) [--body B]"
+        Write-Host "  write --title T [--file F] [--body B] [--content-file P | --content C]"
         Write-Host "  delete <commit_hash>                    Delete memory entry"
     }
 }

@@ -41,30 +41,32 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1
 
 ### write
 
-Single atomic call (create file + git commit):
-```bash
+Use one of these short patterns:
+
+Preferred (--content-file):
+~~~bash
 tmp_md="$(mktemp)"
-cat > "$tmp_md" <<'EOF'
+cat > "$tmp_md" <<'MD'
 <entry_markdown>
-EOF
-bash <SKILL_DIR>/scripts/mem.sh write \
-  --title "[module] action + object" \
-  --content-file "$tmp_md" \
-  --body "<commit_body>"
-```
-```powershell
+MD
+bash <SKILL_DIR>/scripts/mem.sh write   --title "[module] action + object"   --content-file "$tmp_md"   --body "<commit_body>"
+~~~
+~~~powershell
 $tmpMd = Join-Path $env:TEMP ("gitmemo-" + [guid]::NewGuid().ToString() + ".md")
 [System.IO.File]::WriteAllText($tmpMd, "<entry_markdown>", [System.Text.UTF8Encoding]::new($false))
-powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" write `
-  --title "[module] action + object" `
-  --content-file $tmpMd `
-  --body "<commit_body>"
-```
-- `--file` optional (defaults to `entries/<timestamp>-<slug>.md`)
-- Prefer `--content-file <path>` with a temporary `.md` file to avoid shell escaping issues; `--content` is kept for compatibility
-- When `--content-file` is used, script auto-deletes the source file after a successful write
-- Auto-syncs `.mem` branch to current repo branch
+powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" write --title "[module] action + object" --content-file $tmpMd --body "<commit_body>"
+~~~
 
+Windows-friendly direct file flow:
+~~~powershell
+$entry = '.mem\entries\20260310T000000Z-module-action-object.md'
+[System.IO.File]::WriteAllText($entry, "<entry_markdown>", [System.Text.UTF8Encoding]::new($false))
+powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" write --title "[module] action + object" --file $entry --body "<commit_body>"
+~~~
+
+- Prefer --content-file; --content stays compatibility-only, and temp files passed via --content-file are auto-deleted after a successful write.
+- --file is optional, accepts entries/foo.md, .mem/entries/foo.md, and absolute paths under .mem/entries, and commits existing entry files directly.
+- If --content-file already points inside .mem/entries, write reuses it in place and auto-syncs the .mem branch to the current repo branch.
 ### delete
 ```bash
 bash <SKILL_DIR>/scripts/mem.sh delete <commit_hash>

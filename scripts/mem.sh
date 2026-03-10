@@ -23,13 +23,22 @@ resolve_mem_dir() {
     MEM_DIR="$root/.mem"
 }
 
+normalize_path_like() {
+    local path="$1"
+    path="${path//\\//}"
+    case "$path" in
+        ./*) path="${path#./}" ;;
+    esac
+    printf '%s\n' "$path"
+}
+
 ensure_init() {
     resolve_mem_dir
     if [ ! -d "$MEM_DIR/.git" ]; then
         mkdir -p "$MEM_DIR/entries"
         git -C "$MEM_DIR" init -q
         touch "$MEM_DIR/entries/.gitkeep"
-        git -C "$MEM_DIR" add .
+        git -C "$MEM_DIR" add 'entries/.gitkeep'
         git -C "$MEM_DIR" commit -q -m "init: initialize memory repo"
     fi
 }
@@ -59,10 +68,57 @@ normalize_entry_file() {
         return
     fi
 
-    case "$file" in
-        entries/*) echo "$file" ;;
-        *) echo "entries/$file" ;;
+    local direct_entry
+    direct_entry=$(entry_file_from_path "$file")
+    if [ -n "$direct_entry" ]; then
+        echo "$direct_entry"
+        return
+    fi
+
+    local normalized
+    normalized=$(normalize_path_like "$file")
+
+    case "$normalized" in
+        entries/*|/*|[A-Za-z]:/*) echo "$normalized" ;;
+        *) echo "entries/$normalized" ;;
     esac
+}
+
+entry_file_from_path() {
+    local file="$1"
+    [ -z "$file" ] && return 0
+
+    local normalized
+    normalized=$(normalize_path_like "$file")
+
+    case "$normalized" in
+        .mem/entries/*)
+            printf '%s\n' "${normalized#.mem/}"
+            return 0
+            ;;
+        entries/*)
+            printf '%s\n' "$normalized"
+            return 0
+            ;;
+    esac
+
+    if [ -e "$file" ]; then
+        local dir base full mem_root
+        dir=$(cd "$(dirname "$file")" 2>/dev/null && pwd -P) || dir=""
+        if [ -n "$dir" ]; then
+            base=$(basename "$file")
+            full="$dir/$base"
+            mem_root=$(cd "$MEM_DIR" 2>/dev/null && pwd -P) || mem_root=""
+            if [ -n "$mem_root" ]; then
+                case "$full" in
+                    "$mem_root"/entries/*)
+                        printf '%s\n' "$(normalize_path_like "${full#"$mem_root"/}")"
+                        return 0
+                        ;;
+                esac
+            fi
+        fi
+    fi
 }
 
 is_safe_entry_path() {
@@ -92,6 +148,7 @@ slugify_title() {
 cmd_write() {
     ensure_init
     local file="" title="" body="" content="" content_file=""
+    local direct_content_file="" use_existing_entry=0 delete_content_file=0
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -105,17 +162,12 @@ cmd_write() {
     done
 
     if [ -z "$title" ]; then
-        echo "Usage: mem.sh write --title <title> [--file <path>] (--content-file <path> | --content <markdown>) [--body <body>]" >&2
+        echo "Usage: mem.sh write --title <title> [--file <path>] [--body <body>] [--content-file <path> | --content <markdown>]" >&2
         return 1
     fi
 
     if [ -n "$content" ] && [ -n "$content_file" ]; then
         echo "Error: use only one of --content or --content-file" >&2
-        return 1
-    fi
-
-    if [ -z "$content" ] && [ -z "$content_file" ]; then
-        echo "Error: missing content. Use --content or --content-file." >&2
         return 1
     fi
 
@@ -128,13 +180,26 @@ cmd_write() {
         return 1
     fi
 
-    if [ -z "$file" ]; then
+    if [ -n "$content_file" ]; then
+        direct_content_file=$(entry_file_from_path "$content_file")
+    fi
+
+    if [ -n "$file" ]; then
+        file=$(normalize_entry_file "$file")
+        if [ -n "$direct_content_file" ] && [ "$file" != "$direct_content_file" ]; then
+            echo "Error: --file must match the existing .mem/entries path referenced by --content-file" >&2
+            return 1
+        fi
+    elif [ -n "$direct_content_file" ]; then
+        file="$direct_content_file"
+    elif [ -n "$content" ] || [ -n "$content_file" ]; then
         local ts slug
         ts=$(date -u +"%Y%m%dT%H%M%SZ")
         slug=$(slugify_title "$title")
         file="entries/$ts-$slug.md"
     else
-        file=$(normalize_entry_file "$file")
+        echo "Error: missing content. Use --content, --content-file, or pre-write a .mem/entries file and pass --file." >&2
+        return 1
     fi
 
     if ! is_safe_entry_path "$file"; then
@@ -151,12 +216,33 @@ cmd_write() {
 
     local full_path
     full_path="$MEM_DIR/$file"
-    mkdir -p "$(dirname "$full_path")"
 
-    if [ -n "$content_file" ]; then
-        cat "$content_file" > "$full_path"
+    if [ -n "$direct_content_file" ]; then
+        use_existing_entry=1
+    elif [ -z "$content" ] && [ -z "$content_file" ]; then
+        if [ -f "$full_path" ]; then
+            use_existing_entry=1
+        else
+            echo "Error: existing entry file not found: $full_path" >&2
+            return 1
+        fi
+    elif [ -n "$content_file" ]; then
+        delete_content_file=1
+    fi
+
+    if [ "$use_existing_entry" -eq 1 ]; then
+        if [ ! -f "$full_path" ]; then
+            echo "Error: existing entry file not found after branch sync: $full_path" >&2
+            return 1
+        fi
     else
-        printf '%s\n' "$content" > "$full_path"
+        mkdir -p "$(dirname "$full_path")"
+
+        if [ -n "$content_file" ]; then
+            cat "$content_file" > "$full_path"
+        else
+            printf '%s\n' "$content" > "$full_path"
+        fi
     fi
 
     git -C "$MEM_DIR" add "$file"
@@ -169,7 +255,7 @@ cmd_write() {
     local hash
     hash=$(git -C "$MEM_DIR" rev-parse HEAD)
 
-    if [ -n "$content_file" ]; then
+    if [ "$delete_content_file" -eq 1 ]; then
         if ! rm -f -- "$content_file"; then
             echo "Warning: write succeeded but failed to delete content file: $content_file" >&2
         fi
@@ -418,7 +504,7 @@ case "${1:-help}" in
         echo "  init                                    Initialize .mem repo" >&2
         echo "  search <keywords_csv> [skip] [mode] [--mode M]  Search memories (M: and|or|auto)" >&2
         echo "  read <commit_hash>                      Read memory content" >&2
-        echo "  write --title T [--file F] (--content-file P | --content C) [--body B]" >&2
+        echo "  write --title T [--file F] [--body B] [--content-file P | --content C]" >&2
         echo "  delete <commit_hash>                    Delete memory entry" >&2
         ;;
 esac
