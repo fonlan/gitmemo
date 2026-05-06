@@ -41,30 +41,35 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1
 
 ### write
 
-Use one of these short patterns:
+Use this stable file-based pattern:
 
-Preferred (--content-file):
+Preferred (--content-file + --body-file):
 ~~~bash
 tmp_md="$(mktemp)"
+tmp_body="$(mktemp)"
 cat > "$tmp_md" <<'MD'
 <entry_markdown>
 MD
+cat > "$tmp_body" <<'BODY'
+<commit_body>
+BODY
 bash <SKILL_DIR>/scripts/mem.sh write   --title "[module] action + object"   --content-file "$tmp_md"   --body "<commit_body>"
 ~~~
 ~~~powershell
 $tmpMd = Join-Path $env:TEMP ("gitmemo-" + [guid]::NewGuid().ToString() + ".md")
-[System.IO.File]::WriteAllText($tmpMd, "<entry_markdown>", [System.Text.UTF8Encoding]::new($false))
-powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" write --title "[module] action + object" --content-file $tmpMd --body "<commit_body>"
+$tmpBody = Join-Path $env:TEMP ("gitmemo-" + [guid]::NewGuid().ToString() + ".body.txt")
+[System.IO.File]::WriteAllText($tmpMd, @'
+<entry_markdown>
+'@, [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText($tmpBody, @'
+<commit_body>
+'@, [System.Text.UTF8Encoding]::new($false))
+powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" write --title "[module] action + object" --content-file $tmpMd --body-file $tmpBody
 ~~~
 
-Windows-friendly direct file flow:
-~~~powershell
-$entry = '.mem\entries\20260310T000000Z-module-action-object.md'
-[System.IO.File]::WriteAllText($entry, "<entry_markdown>", [System.Text.UTF8Encoding]::new($false))
-powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" write --title "[module] action + object" --file $entry --body "<commit_body>"
-~~~
-
+- On Windows, keep only the short title in the command line. Do not pass multiline Markdown or commit bodies through `--content` / `--body`; write files with UTF-8 no BOM and pass `--content-file` / `--body-file`.
 - Prefer --content-file; --content stays compatibility-only, and temp files passed via --content-file are auto-deleted after a successful write.
+- Prefer --body-file for multiline commit bodies; --body is still accepted for short compatibility-only bodies.
 - --file is optional, accepts entries/foo.md, .mem/entries/foo.md, and absolute paths under .mem/entries, and commits existing entry files directly.
 - If --content-file already points inside .mem/entries, write reuses it in place and auto-syncs the .mem branch to the current repo branch.
 ### delete
@@ -95,11 +100,11 @@ tags: [auth, security]
 - Changes/outputs summary
 ```
 
-## Commit Message (--title + --body)
+## Commit Message (--title + --body-file)
 
 **--title**: `[module] action + object` (e.g. `[auth] add rate-limit for login`)
 
-**--body**: 1-3 sentence summary + metadata (must match front matter):
+**--body-file**: 1-3 sentence summary + metadata (must match front matter):
 ```
 Added per-IP rate limiting (10 req/min) to login endpoint.
 

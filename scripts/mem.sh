@@ -156,7 +156,7 @@ slugify_title() {
 
 cmd_write() {
     ensure_init
-    local file="" title="" body="" content="" content_file=""
+    local file="" title="" body="" body_file="" content="" content_file=""
     local direct_content_file="" use_existing_entry=0 delete_content_file=0
 
     while [[ $# -gt 0 ]]; do
@@ -164,6 +164,7 @@ cmd_write() {
             --file)         file="$2";         shift 2 ;;
             --title)        title="$2";        shift 2 ;;
             --body)         body="$2";         shift 2 ;;
+            --body-file)    body_file="$2";    shift 2 ;;
             --content)      content="$2";      shift 2 ;;
             --content-file) content_file="$2"; shift 2 ;;
             *) echo "Unknown option: $1" >&2; return 1 ;;
@@ -171,8 +172,22 @@ cmd_write() {
     done
 
     if [ -z "$title" ]; then
-        echo 'Usage: mem.sh write --title <title> [--file <path>] [--body <body>] [--content-file <path> | --content <markdown>]' >&2
+        echo 'Usage: mem.sh write --title <title> [--file <path>] [--body <body> | --body-file <path>] [--content-file <path> | --content <markdown>]' >&2
         return 1
+    fi
+
+    if [ -n "$body" ] && [ -n "$body_file" ]; then
+        echo 'Error: use only one of --body or --body-file' >&2
+        return 1
+    fi
+
+    if [ -n "$body_file" ] && [ ! -f "$body_file" ]; then
+        echo "Error: body file not found: $body_file" >&2
+        return 1
+    fi
+
+    if [ -n "$body_file" ]; then
+        body=$(cat -- "$body_file")
     fi
 
     if [ -n "$content" ] && [ -n "$content_file" ]; then
@@ -516,7 +531,7 @@ case "${1:-help}" in
         echo '  init                                    Initialize .mem repo' >&2
         echo '  search <keywords_csv> [skip] [mode] [--mode M]  Search memories (M: and|or|auto)' >&2
         echo '  read <commit_hash>                      Read memory content' >&2
-        echo '  write --title T [--file F] [--body B] [--content-file P | --content C]' >&2
+        echo '  write --title T [--file F] [--body B | --body-file P] [--content-file P | --content C]' >&2
         echo '  delete <commit_hash>                    Delete memory entry' >&2
         ;;
 esac

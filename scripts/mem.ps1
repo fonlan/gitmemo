@@ -343,6 +343,7 @@ function Invoke-Write {
     $body = ""
     $content = ""
     $contentFile = ""
+    $bodyFile = ""
     $directContentFile = ""
     $reuseExistingFile = $false
     $deleteSourceFile = $false
@@ -361,6 +362,10 @@ function Invoke-Write {
                 if ($i + 1 -ge $Params.Count) { Write-Error "Error: --body requires a value"; return }
                 $body = $Params[++$i]
             }
+            "--body-file" {
+                if ($i + 1 -ge $Params.Count) { Write-Error "Error: --body-file requires a value"; return }
+                $bodyFile = $Params[++$i]
+            }
             "--content" {
                 if ($i + 1 -ge $Params.Count) { Write-Error "Error: --content requires a value"; return }
                 $content = $Params[++$i]
@@ -377,8 +382,22 @@ function Invoke-Write {
     }
 
     if (-not $title) {
-        Write-Error "Usage: mem.ps1 write --title <title> [--file <path>] [--body <body>] [--content-file <path> | --content <markdown>]"
+        Write-Error "Usage: mem.ps1 write --title <title> [--file <path>] [--body <body> | --body-file <path>] [--content-file <path> | --content <markdown>]"
         return
+    }
+
+    if ($body -and $bodyFile) {
+        Write-Error "Error: use only one of --body or --body-file"
+        return
+    }
+
+    if ($bodyFile -and -not (Test-Path -LiteralPath $bodyFile -PathType Leaf)) {
+        Write-Error "Error: body file not found: $bodyFile"
+        return
+    }
+
+    if ($bodyFile) {
+        $body = [System.IO.File]::ReadAllText($bodyFile, [System.Text.UTF8Encoding]::new($false))
     }
 
     if ($content -and $contentFile) {
@@ -564,7 +583,7 @@ switch ($Command) {
         Write-Host "  init                                    Initialize .mem repo"
         Write-Host "  search <keywords_csv> [skip] [mode] [--mode M]  Search memories (M: and|or|auto)"
         Write-Host "  read <commit_hash>                      Read memory content"
-        Write-Host "  write --title T [--file F] [--body B] [--content-file P | --content C]"
+        Write-Host "  write --title T [--file F] [--body B | --body-file P] [--content-file P | --content C]"
         Write-Host "  delete <commit_hash>                    Delete memory entry"
     }
 }
