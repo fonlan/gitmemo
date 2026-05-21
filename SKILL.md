@@ -29,7 +29,7 @@ bash <SKILL_DIR>/scripts/mem.sh search <keywords_csv> [skip] [--mode <and|or|aut
 powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" search <keywords_csv> [skip] [--mode <and|or|auto>]
 ```
 - `keywords_csv`: comma-separated. `skip`: pagination offset (default 0). Up to 20 results/call, format: `hash|title|date`
-- `mode`(default `auto`): `and`=strict, `or`=broad, `auto`=try `and` then fallback `or`
+- `mode` (default `auto`): `and`=strict, `or`=broad, `auto`=try `and` then fallback `or`
 
 ### read
 ```bash
@@ -41,9 +41,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1
 
 ### write
 
-Use this stable file-based pattern:
+Preferred pattern: write Markdown + commit body to temp files, then pass `--content-file` + `--body-file`.
 
-Preferred (--content-file + --body-file):
 ~~~bash
 tmp_md="$(mktemp)"
 tmp_body="$(mktemp)"
@@ -53,7 +52,10 @@ MD
 cat > "$tmp_body" <<'BODY'
 <commit_body>
 BODY
-bash <SKILL_DIR>/scripts/mem.sh write   --title "[module] action + object"   --content-file "$tmp_md"   --body "<commit_body>"
+bash <SKILL_DIR>/scripts/mem.sh write \
+  --title "[module] action + object" \
+  --content-file "$tmp_md" \
+  --body-file "$tmp_body"
 ~~~
 ~~~powershell
 $tmpMd = Join-Path $env:TEMP ("gitmemo-" + [guid]::NewGuid().ToString() + ".md")
@@ -64,14 +66,18 @@ $tmpBody = Join-Path $env:TEMP ("gitmemo-" + [guid]::NewGuid().ToString() + ".bo
 [System.IO.File]::WriteAllText($tmpBody, @'
 <commit_body>
 '@, [System.Text.UTF8Encoding]::new($false))
-powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" write --title "[module] action + object" --content-file $tmpMd --body-file $tmpBody
+powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" write `
+  --title "[module] action + object" `
+  --content-file $tmpMd `
+  --body-file $tmpBody
 ~~~
 
-- On Windows, keep only the short title in the command line. Do not pass multiline Markdown or commit bodies through `--content` / `--body`; write files with UTF-8 no BOM and pass `--content-file` / `--body-file`.
-- Prefer --content-file; --content stays compatibility-only, and temp files passed via --content-file are auto-deleted after a successful write.
-- Prefer --body-file for multiline commit bodies; --body is still accepted for short compatibility-only bodies.
-- --file is optional, accepts entries/foo.md, .mem/entries/foo.md, and absolute paths under .mem/entries, and commits existing entry files directly.
-- If --content-file already points inside .mem/entries, write reuses it in place and auto-syncs the .mem branch to the current repo branch.
+- Keep only the short title in the command line. Do not pass multiline Markdown or commit bodies through `--content` / `--body`; write files with UTF-8 no BOM and pass `--content-file` / `--body-file`.
+- `--content` / `--body` stay as compatibility-only flags for short, single-line values.
+- Temp files passed via `--content-file` are auto-deleted after a successful write.
+- `--file` is optional, accepts `entries/foo.md`, `.mem/entries/foo.md`, and absolute paths under `.mem/entries`, and commits existing entry files directly.
+- If `--content-file` already points inside `.mem/entries`, write reuses it in place and auto-syncs the `.mem` branch to the current repo branch.
+
 ### delete
 ```bash
 bash <SKILL_DIR>/scripts/mem.sh delete <commit_hash>
@@ -80,7 +86,7 @@ bash <SKILL_DIR>/scripts/mem.sh delete <commit_hash>
 powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" delete <commit_hash>
 ```
 
-## Entry Format (--content)
+## Entry Format (--content-file)
 
 ```markdown
 ---

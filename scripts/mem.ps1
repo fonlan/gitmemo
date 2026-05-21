@@ -116,8 +116,8 @@ function Get-DirectEntryPath {
 
     try {
         $fullPath = [System.IO.Path]::GetFullPath($Path)
-        $memPrefix = [System.IO.Path]::GetFullPath($script:MemDir).TrimEnd('\\', '/') + [System.IO.Path]::DirectorySeparatorChar
-        $entriesPrefix = [System.IO.Path]::GetFullPath((Join-Path $script:MemDir "entries")).TrimEnd('\\', '/') + [System.IO.Path]::DirectorySeparatorChar
+        $memPrefix = [System.IO.Path]::GetFullPath($script:MemDir).TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+        $entriesPrefix = [System.IO.Path]::GetFullPath((Join-Path $script:MemDir "entries")).TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
         if ($fullPath.StartsWith($entriesPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
             $relative = $fullPath.Substring($memPrefix.Length)
             return (Normalize-EntryLikePath -Path $relative)
@@ -489,14 +489,27 @@ function Invoke-Write {
     }
 
     git -C $script:MemDir add -- $file
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Error: git add failed for $file"
+        return
+    }
+
     if ($body) {
         git -C $script:MemDir commit -q -m $title -m $body
     }
     else {
         git -C $script:MemDir commit -q -m $title
     }
+    if ($LASTEXITCODE -ne 0) {
+        git -C $script:MemDir reset -q HEAD -- $file 2>$null | Out-Null
+        if (-not $reuseExistingFile -and (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+            Remove-Item -LiteralPath $fullPath -Force -ErrorAction SilentlyContinue
+        }
+        Write-Error "Error: git commit failed for $file (rolled back)"
+        return
+    }
 
-    $hash = git -C $script:MemDir rev-parse HEAD
+    $hash = (git -C $script:MemDir rev-parse HEAD).Trim()
 
     if ($deleteSourceFile) {
         try {
@@ -529,8 +542,17 @@ function Invoke-Delete {
     $fullPath = Join-Path $script:MemDir $file
     if (Test-Path -LiteralPath $fullPath -PathType Leaf) {
         git -C $script:MemDir rm -q -- $file
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Error: git rm failed for $file"
+            return
+        }
         $basename = [System.IO.Path]::GetFileNameWithoutExtension($file)
         git -C $script:MemDir commit -q -m "delete: remove $basename"
+        if ($LASTEXITCODE -ne 0) {
+            git -C $script:MemDir reset -q HEAD -- $file 2>$null | Out-Null
+            Write-Error "Error: git commit failed while deleting $file (rolled back staging)"
+            return
+        }
         Write-Output "OK: deleted $file"
     }
     else {
