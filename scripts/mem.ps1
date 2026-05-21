@@ -5,6 +5,16 @@ $Command = if ($args.Count -gt 0) { [string]$args[0] } else { "" }
 $RemainingParameters = if ($args.Count -gt 1) { @($args[1..($args.Count - 1)]) } else { @() }
 
 $ErrorActionPreference = "Stop"
+
+# Force UTF-8 (no BOM) for console I/O and pipe encoding so that:
+# - reading native command stdout (e.g. git show) decodes UTF-8 bytes correctly instead of via the system ANSI code page
+# - writing to stdout emits UTF-8 bytes that downstream tools can read losslessly
+# - text piped to native commands is sent as UTF-8
+$script:Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+try { [Console]::OutputEncoding = $script:Utf8NoBom } catch { }
+try { [Console]::InputEncoding = $script:Utf8NoBom } catch { }
+$OutputEncoding = $script:Utf8NoBom
+
 $script:RepoRoot = $null
 $script:MemDir = $null
 
@@ -480,11 +490,30 @@ function Invoke-Write {
         }
 
         if ($contentFile) {
-            Copy-Item -LiteralPath $contentFile -Destination $fullPath -Force
+            # Always store entry files as UTF-8 (no BOM). If the source isn't valid UTF-8
+            # (e.g. a caller on Windows wrote the temp md as system ANSI/GBK), transcode
+            # from the default ANSI code page into UTF-8 before committing.
+            $srcBytes = [System.IO.File]::ReadAllBytes($contentFile)
+            $strictUtf8 = New-Object System.Text.UTF8Encoding($false, $true)
+            $isValidUtf8 = $true
+            try { $null = $strictUtf8.GetString($srcBytes) }
+            catch { $isValidUtf8 = $false }
+
+            if (-not $isValidUtf8) {
+                $decoded = [System.Text.Encoding]::Default.GetString($srcBytes)
+                [System.IO.File]::WriteAllText($fullPath, $decoded, $script:Utf8NoBom)
+            }
+            elseif ($srcBytes.Length -ge 3 -and $srcBytes[0] -eq 0xEF -and $srcBytes[1] -eq 0xBB -and $srcBytes[2] -eq 0xBF) {
+                $stripped = New-Object byte[] ($srcBytes.Length - 3)
+                [System.Buffer]::BlockCopy($srcBytes, 3, $stripped, 0, $stripped.Length)
+                [System.IO.File]::WriteAllBytes($fullPath, $stripped)
+            }
+            else {
+                [System.IO.File]::WriteAllBytes($fullPath, $srcBytes)
+            }
         }
         else {
-            $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-            [System.IO.File]::WriteAllText($fullPath, $content + "`n", $utf8NoBom)
+            [System.IO.File]::WriteAllText($fullPath, $content + "`n", $script:Utf8NoBom)
         }
     }
 
@@ -494,13 +523,19 @@ function Invoke-Write {
         return
     }
 
-    if ($body) {
-        git -C $script:MemDir commit -q -m $title -m $body
+    # Pass commit message via a UTF-8 (no BOM) file rather than -m to bypass Windows
+    # argv ANSI conversion, which would otherwise mangle non-ASCII (e.g. Chinese) chars.
+    $msgFile = Join-Path $env:TEMP ("gitmemo-commit-" + [guid]::NewGuid().ToString() + ".msg")
+    try {
+        $msg = if ($body) { "$title`n`n$body" } else { "$title" }
+        [System.IO.File]::WriteAllText($msgFile, $msg, $script:Utf8NoBom)
+        git -C $script:MemDir commit -q -F $msgFile
+        $commitExit = $LASTEXITCODE
     }
-    else {
-        git -C $script:MemDir commit -q -m $title
+    finally {
+        Remove-Item -LiteralPath $msgFile -Force -ErrorAction SilentlyContinue
     }
-    if ($LASTEXITCODE -ne 0) {
+    if ($commitExit -ne 0) {
         git -C $script:MemDir reset -q HEAD -- $file 2>$null | Out-Null
         if (-not $reuseExistingFile -and (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
             Remove-Item -LiteralPath $fullPath -Force -ErrorAction SilentlyContinue
@@ -547,8 +582,16 @@ function Invoke-Delete {
             return
         }
         $basename = [System.IO.Path]::GetFileNameWithoutExtension($file)
-        git -C $script:MemDir commit -q -m "delete: remove $basename"
-        if ($LASTEXITCODE -ne 0) {
+        $msgFile = Join-Path $env:TEMP ("gitmemo-commit-" + [guid]::NewGuid().ToString() + ".msg")
+        try {
+            [System.IO.File]::WriteAllText($msgFile, "delete: remove $basename", $script:Utf8NoBom)
+            git -C $script:MemDir commit -q -F $msgFile
+            $commitExit = $LASTEXITCODE
+        }
+        finally {
+            Remove-Item -LiteralPath $msgFile -Force -ErrorAction SilentlyContinue
+        }
+        if ($commitExit -ne 0) {
             git -C $script:MemDir reset -q HEAD -- $file 2>$null | Out-Null
             Write-Error "Error: git commit failed while deleting $file (rolled back staging)"
             return
