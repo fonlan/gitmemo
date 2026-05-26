@@ -41,7 +41,30 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1
 
 ### write
 
-Preferred pattern: write Markdown + commit body to temp files, then pass `--content-file` + `--body-file`.
+**Preferred path — use the IDE/agent native file-write tool (Cursor `Write`, VSCode Copilot `Create/Edit File`, Claude Code `Write`, etc.)**
+
+Authoring Markdown directly with the IDE's file-write tool sidesteps all PowerShell/bash heredoc, quoting, escaping and code-page pitfalls. The mem scripts are designed to commit a pre-written file in place:
+
+1. Pick an entry filename `entries/<YYYYMMDDTHHMMSSZ>-<slug>.md`. Use the IDE's file-write tool to create `.mem/entries/<filename>` with the full memory Markdown (UTF-8, no BOM — IDE tools default to this).
+2. Use the same IDE tool to write the commit body text to a temp file (e.g. `<TEMP>/gitmemo-<uuid>.body.txt`). Skip this step and use `--body "<one line>"` only if the body is a single short line.
+3. Commit via `mem.sh` / `mem.ps1`:
+
+```bash
+bash <SKILL_DIR>/scripts/mem.sh write \
+  --title "[module] action + object" \
+  --content-file ".mem/entries/<filename>" \
+  --body-file "<temp_body_path>"
+```
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" write `
+  --title "[module] action + object" `
+  --content-file ".mem/entries/<filename>" `
+  --body-file "<temp_body_path>"
+```
+
+When `--content-file` already lives under `.mem/entries`, the script reuses it in place (no copy, file is kept) and auto-syncs the `.mem` branch to the current repo branch. `--file entries/<filename>` is an equivalent form once the file is on disk.
+
+**Fallback — shell heredoc when no IDE write tool is available**
 
 ~~~bash
 tmp_md="$(mktemp)"
@@ -57,26 +80,13 @@ bash <SKILL_DIR>/scripts/mem.sh write \
   --content-file "$tmp_md" \
   --body-file "$tmp_body"
 ~~~
-~~~powershell
-$tmpMd = Join-Path $env:TEMP ("gitmemo-" + [guid]::NewGuid().ToString() + ".md")
-$tmpBody = Join-Path $env:TEMP ("gitmemo-" + [guid]::NewGuid().ToString() + ".body.txt")
-[System.IO.File]::WriteAllText($tmpMd, @'
-<entry_markdown>
-'@, [System.Text.UTF8Encoding]::new($false))
-[System.IO.File]::WriteAllText($tmpBody, @'
-<commit_body>
-'@, [System.Text.UTF8Encoding]::new($false))
-powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" write `
-  --title "[module] action + object" `
-  --content-file $tmpMd `
-  --body-file $tmpBody
-~~~
 
-- Keep only the short title in the command line. Do not pass multiline Markdown or commit bodies through `--content` / `--body`; write files with UTF-8 no BOM and pass `--content-file` / `--body-file`.
+On Windows PowerShell, heredoc-style here-strings are fragile (quoting, backtick escapes, ANSI/UTF-8 code page mismatches) and frequently corrupt CJK or special characters. **Strongly prefer the IDE write path above.** If you must use PowerShell, write the files via `[System.IO.File]::WriteAllText(...)` with `UTF8Encoding($false)` and treat any write failure as a signal to fall back to the IDE path rather than retrying.
+
+- Keep only the short title in the command line. Do not pass multiline Markdown or commit bodies through `--content` / `--body`; always go through `--content-file` / `--body-file`.
 - `--content` / `--body` stay as compatibility-only flags for short, single-line values.
-- Temp files passed via `--content-file` are auto-deleted after a successful write.
-- `--file` is optional, accepts `entries/foo.md`, `.mem/entries/foo.md`, and absolute paths under `.mem/entries`, and commits existing entry files directly.
-- If `--content-file` already points inside `.mem/entries`, write reuses it in place and auto-syncs the `.mem` branch to the current repo branch.
+- Temp files passed via `--content-file` are auto-deleted after a successful write; files that already live under `.mem/entries` are committed in place and kept.
+- `--file` accepts `entries/foo.md`, `.mem/entries/foo.md`, and absolute paths under `.mem/entries`, and commits existing entry files directly.
 
 ### delete
 ```bash
