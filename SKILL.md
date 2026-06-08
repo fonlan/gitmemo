@@ -6,6 +6,7 @@ description: "Long-term memory for AI agents via local .mem git repo. Interfaces
 # GitMemo — AI Agent Long-Term Memory
 
 Scripts: `<SKILL_DIR>/scripts/mem.sh` (Linux/macOS) | `<SKILL_DIR>/scripts/mem.ps1` (Windows).
+There is no required standalone `gitmemo` executable; always invoke `mem.sh` / `mem.ps1` by path.
 
 Path semantics:
 - Script lookup: always resolve `mem.sh`/`mem.ps1` from the **skill installation directory** (`<SKILL_DIR>/scripts`), not from the current project directory. This supports global skill installation.
