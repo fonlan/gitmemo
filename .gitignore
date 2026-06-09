@@ -1,5 +1,8 @@
 .mem/
 .agents/
+.claude/
+.codegraph/
+.cursor/
 .pptx_build/
 artifacts/
 skills-lock.json
