@@ -1,4 +1,5 @@
 .mem/
+.foco/
 .agents/
 .claude/
 .codegraph/

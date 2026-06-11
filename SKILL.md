@@ -14,6 +14,14 @@ Path semantics:
 
 ## Commands
 
+### Argument Contract
+
+- `--mode` is valid only for `search`. Do not append `--mode` to `read`, `write`, or `delete`.
+- `write` has two separate payloads:
+  - memory entry Markdown: required; provide exactly one of `--content-file <path>`, `--content <markdown>`, or an existing `.mem/entries/...` file via `--file <entry_path>`.
+  - commit body: optional; provide `--body-file <path>` or short single-line `--body "<text>"`.
+- `--body` is never memory content. A command like `write --title T --body $'---\n...'` is missing entry content and must fail.
+
 ### init
 ```bash
 bash <SKILL_DIR>/scripts/mem.sh init
@@ -39,15 +47,33 @@ bash <SKILL_DIR>/scripts/mem.sh read <commit_hash>
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" read <commit_hash>
 ```
+- Exact interface: `read <commit_hash>` only. No `--mode`.
 
 ### write
+
+Exact interface:
+```bash
+bash <SKILL_DIR>/scripts/mem.sh write --title <title> [--file <entry_path>] [--content-file <path> | --content <markdown>] [--body-file <path> | --body <text>]
+```
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>/scripts/mem.ps1" write --title <title> [--file <entry_path>] [--content-file <path> | --content <markdown>] [--body-file <path> | --body <text>]
+```
+
+Do not improvise flags:
+```bash
+# Wrong: --mode is search-only, and --body is only the optional commit body.
+bash <SKILL_DIR>/scripts/mem.sh write --title "[module] done" --body $'---\n...' --mode auto
+
+# Right: entry Markdown goes through --content-file; commit body goes through --body-file.
+bash <SKILL_DIR>/scripts/mem.sh write --title "[module] done" --content-file "<entry_md_path>" --body-file "<body_txt_path>"
+```
 
 **Preferred path — use the IDE/agent native file-write tool (Cursor `Write`, VSCode Copilot `Create/Edit File`, Claude Code `Write`, etc.)**
 
 Authoring Markdown directly with the IDE's file-write tool sidesteps all PowerShell/bash heredoc, quoting, escaping and code-page pitfalls. The mem scripts are designed to commit a pre-written file in place:
 
 1. Pick an entry filename `entries/<YYYYMMDDTHHMMSSZ>-<slug>.md`. Use the IDE's file-write tool to create `.mem/entries/<filename>` with the full memory Markdown (UTF-8, no BOM — IDE tools default to this).
-2. Use the same IDE tool to write the commit body text to a temp file (e.g. `<TEMP>/gitmemo-<uuid>.body.txt`). Skip this step and use `--body "<one line>"` only if the body is a single short line.
+2. Use the same IDE tool to write the optional commit body text to a temp file (e.g. `<TEMP>/gitmemo-<uuid>.body.txt`). Skip this step and omit commit body entirely, or use `--body "<one line>"` only if the body is a single short line.
 3. Commit via `mem.sh` / `mem.ps1`:
 
 ```bash
